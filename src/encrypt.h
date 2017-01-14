@@ -29,10 +29,12 @@
 
 #ifdef max
 #undef max
+#define max(a, b) (((a) > (b)) ? (a) : (b))
 #endif
 
 #ifdef min
 #undef min
+#define min(a, b) (((a) < (b)) ? (a) : (b))
 #endif
 
 #endif
@@ -45,18 +47,14 @@
 #if defined(USE_CRYPTO_MBEDTLS)
 
 #include <mbedtls/cipher.h>
-#include <mbedtls/md.h>
+#include <mbedtls/gcm.h>
+
+/* TODO: replace with gcm cipher context type */
 typedef mbedtls_cipher_info_t cipher_kt_t;
 typedef mbedtls_cipher_context_t cipher_evp_t;
-typedef mbedtls_md_info_t digest_type_t;
+
 #define MAX_KEY_LENGTH 64
 #define MAX_IV_LENGTH MBEDTLS_MAX_IV_LENGTH
-#define MAX_MD_SIZE MBEDTLS_MD_MAX_SIZE
-
-/* we must have MBEDTLS_CIPHER_MODE_CFB defined */
-#if !defined(MBEDTLS_CIPHER_MODE_CFB)
-#error Cipher Feedback mode a.k.a CFB not supported by your mbed TLS.
-#endif
 
 #endif
 
@@ -78,40 +76,29 @@ typedef struct {
 #endif
 
 #define SODIUM_BLOCK_SIZE   64
-#define CIPHER_NUM          21
+#define CIPHER_NUM          7
 
-#define NONE                -1
-#define TABLE               0
-#define RC4                 1
-#define RC4_MD5             2
-#define AES_128_CFB         3
-#define AES_192_CFB         4
-#define AES_256_CFB         5
-#define AES_128_CTR         6
-#define AES_192_CTR         7
-#define AES_256_CTR         8
-#define BF_CFB              9
-#define CAMELLIA_128_CFB    10
-#define CAMELLIA_192_CFB    11
-#define CAMELLIA_256_CFB    12
-#define CAST5_CFB           13
-#define DES_CFB             14
-#define IDEA_CFB            15
-#define RC2_CFB             16
-#define SEED_CFB            17
-#define SALSA20             18
-#define CHACHA20            19
-#define CHACHA20IETF        20
+/* now focus on chacha20-poly1305 */
+#define NONE                    (-1)
+#define AES128GCM               0
+#define AES192GCM               1
+#define AES256GCM               2
+/*
+ * methods above requires gcm context
+ * methods below doesn't require it,
+ * then we need to fake one
+ */
+#define CHACHA20POLY1305        3
+#define CHACHA20POLY1305IETF    4
+#define XCHACHA20POLY1305       5
+#define XCHACHA20POLY1305IETF   6
 
-#define ONETIMEAUTH_FLAG 0x10
-#define ADDRTYPE_MASK 0xEF
+#define ADDRTYPE_MASK 0xF
 
-#define ONETIMEAUTH_BYTES 10U
-#define CLEN_BYTES 2U
-#define AUTH_BYTES (ONETIMEAUTH_BYTES + CLEN_BYTES)
-
-#define min(a, b) (((a) < (b)) ? (a) : (b))
-#define max(a, b) (((a) > (b)) ? (a) : (b))
+/* to be determined */
+#define AEAD_BYTES 10U
+#define CHUNKLEN_BYTES 2U
+#define AUTH_BYTES (AEAD_BYTES + CHUNKLEN_BYTES)
 
 typedef struct buffer {
     size_t idx;
