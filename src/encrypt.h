@@ -47,16 +47,34 @@
 #if defined(USE_CRYPTO_MBEDTLS)
 
 #include <mbedtls/cipher.h>
-#include <mbedtls/gcm.h>
 
 /* TODO: replace with gcm cipher context type */
 typedef mbedtls_cipher_info_t cipher_kt_t;
 typedef mbedtls_cipher_context_t cipher_evp_t;
 
-#define MAX_KEY_LENGTH 64
+/* The length of MAC tag
+ * libsodium only outputs exactly *_ABYTES
+ * while mbedtls can choose variable length
+ * thus, we choose the larger one in case
+ * auth failed due to truncated tag
+ */
+#define MAX_TAG_LENGTH 16U
+
+/* In general, most of them are 32U, we make it a little larger */
+#define MAX_KEY_LENGTH 64U
+
+/* In general, max IV len is 16U */
 #define MAX_IV_LENGTH MBEDTLS_MAX_IV_LENGTH
 
 #endif
+
+#define SODIUM_BLOCK_SIZE   64
+#define ADDRTYPE_MASK 0xF
+
+/* to be determined */
+#define AEAD_BYTES 10U
+#define CHUNKLEN_BYTES 2U
+#define AUTH_BYTES (AEAD_BYTES + CHUNKLEN_BYTES)
 
 typedef struct {
     cipher_evp_t *evp;
@@ -75,7 +93,6 @@ typedef struct {
 #include <inttypes.h>
 #endif
 
-#define SODIUM_BLOCK_SIZE   64
 #define CIPHER_NUM          7
 
 /* now focus on chacha20-poly1305 */
@@ -92,13 +109,6 @@ typedef struct {
 #define CHACHA20POLY1305IETF    4
 #define XCHACHA20POLY1305       5
 #define XCHACHA20POLY1305IETF   6
-
-#define ADDRTYPE_MASK 0xF
-
-/* to be determined */
-#define AEAD_BYTES 10U
-#define CHUNKLEN_BYTES 2U
-#define AUTH_BYTES (AEAD_BYTES + CHUNKLEN_BYTES)
 
 typedef struct buffer {
     size_t idx;

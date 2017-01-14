@@ -51,7 +51,6 @@
 #include "encrypt.h"
 #include "utils.h"
 
-
 /* several length:
  *
  *
@@ -59,6 +58,7 @@
 static uint8_t enc_key[MAX_KEY_LENGTH];
 static int enc_key_len;
 static int enc_iv_len;
+static int enc_tag_len;
 static int enc_method;
 
 static struct cache *iv_cache;
@@ -164,19 +164,6 @@ enc_get_iv_len()
     return enc_iv_len;
 }
 
-unsigned char *
-enc_md5(const unsigned char *d, size_t n, unsigned char *md)
-{
-#if defined(USE_CRYPTO_MBEDTLS)
-    static unsigned char m[16];
-    if (md == NULL) {
-        md = m;
-    }
-    mbedtls_md5(d, n, md);
-    return md;
-#endif
-}
-
 int
 cipher_iv_size(const cipher_t *cipher)
 {
@@ -202,9 +189,23 @@ cipher_key_size(const cipher_t *cipher)
 
 int
 derive_key(const cipher_t *cipher,
-             const uint8_t *pass, uint8_t *key)
+           const uint8_t *pass,
+           uint8_t *key)
 {
-    return 0;
+    if (pass == NULL) {
+        LOGE("derive_key(): password is empty");
+        return 0;
+    }
+    int key_size    = cipher_key_size(cipher);
+    size_t pass_len = strlen((const char *)pass);
+    int ret         = crypto_generichash(key, key_size,
+                                         pass, pass_len,
+                                         NULL, 0);
+    if (ret != 0) {
+        LOGE("derive_key(): failed to generic hash");
+        return 0;
+    }
+    return key_size;
 }
 
 int
@@ -392,7 +393,6 @@ ss_onetimeauth_verify(buffer_t *buf, uint8_t *iv)
     mbedtls_md_hmac(mbedtls_md_info_from_type(
                         MBEDTLS_MD_SHA1), auth_key, enc_iv_len + enc_key_len, (uint8_t *)buf->data, len, hash);
 #endif
-
 }
 
 int
@@ -713,12 +713,7 @@ enc_key_init(int method, const char *pass)
     }
 
     /* we should derive key here instead just use md5 */
-//     const digest_type_t *md = get_digest_type("MD5");
-//     if (md == NULL) {
-//         FATAL("MD5 Digest not found in crypto library");
-//     }
-// 
-//     enc_key_len = bytes_to_key(&cipher, md, (const uint8_t *)pass, enc_key);
+    enc_key_len = derive_key(&cipher, (const uint8_t *)pass, enc_key);
 
     if (enc_key_len == 0) {
         FATAL("Cannot generate key and IV");
@@ -781,7 +776,6 @@ ss_check_hash(buffer_t *buf, chunk_t *chunk, enc_ctx_t *ctx, size_t capacity)
             mbedtls_md_hmac(mbedtls_md_info_from_type(MBEDTLS_MD_SHA1), key, enc_iv_len + sizeof(uint32_t),
                             (uint8_t *)chunk->buf->data + AUTH_BYTES, chunk->len, hash);
 #endif
-
 
             // Copy chunk back to buffer
             memmove(buf->data + j + chunk->len, buf->data + k, blen - i - 1);
