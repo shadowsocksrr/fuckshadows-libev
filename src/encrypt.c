@@ -294,8 +294,6 @@ void
 cipher_context_set_iv(cipher_ctx_t *ctx, uint8_t *iv, size_t iv_len,
                       int enc)
 {
-    const unsigned char *true_key;
-
     if (iv == NULL) {
         LOGE("cipher_context_set_iv(): IV is null");
         return;
@@ -309,23 +307,13 @@ cipher_context_set_iv(cipher_ctx_t *ctx, uint8_t *iv, size_t iv_len,
         return;
     }
 
-    if (enc_method == RC4_MD5) {
-        unsigned char key_iv[32];
-        memcpy(key_iv, enc_key, 16);
-        memcpy(key_iv + 16, iv, 16);
-        true_key = enc_md5(key_iv, 32, NULL);
-        iv_len   = 0;
-    } else {
-        true_key = enc_key;
-    }
-
     cipher_evp_t *evp = ctx->evp;
     if (evp == NULL) {
         LOGE("cipher_context_set_iv(): Cipher context is null");
         return;
     }
 #if defined(USE_CRYPTO_MBEDTLS)
-    if (mbedtls_cipher_setkey(evp, true_key, enc_key_len * 8, enc) != 0) {
+    if (mbedtls_cipher_setkey(evp, enc_key, enc_key_len * 8, enc) != 0) {
         mbedtls_cipher_free(evp);
         FATAL("Cannot set mbed TLS cipher key");
     }
