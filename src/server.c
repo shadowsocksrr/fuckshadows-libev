@@ -20,6 +20,9 @@
  * <http://www.gnu.org/licenses/>.
  */
 
+/* TODO: handle EINTR for several syscalls, we should put the call in
+ *       a while loop
+ */
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
