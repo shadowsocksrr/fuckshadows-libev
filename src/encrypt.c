@@ -101,13 +101,16 @@ static const char *supported_ciphers_mbedtls[CIPHER_NUM] = {
 };
 #endif
 
-/* to be determined */
 static const int supported_ciphers_iv_size[CIPHER_NUM] = {
-    99, 8, 12
+    16, 16, 16, 8, 12, 8, 12
 };
 
 static const int supported_ciphers_key_size[CIPHER_NUM] = {
-    99, 32, 32
+    16, 24, 32, 32, 32, 32, 32
+};
+
+static const int supported_ciphers_tag_size[CIPHER_NUM] = {
+    16, 16, 16, 16, 16, 16, 16
 };
 
 int
@@ -601,13 +604,11 @@ ss_decrypt(buffer_t *cipher, enc_ctx_t *ctx, size_t capacity)
         ctx->counter = 0;
         ctx->init    = 1;
 
-        if (enc_method >= RC4_MD5) {
-            if (cache_key_exist(iv_cache, (char *)iv, iv_len)) {
-                bfree(cipher);
-                return -1;
-            } else {
-                cache_insert(iv_cache, (char *)iv, iv_len, NULL);
-            }
+        if (cache_key_exist(iv_cache, (char *)iv, iv_len)) {
+            bfree(cipher);
+            return -1;
+        } else {
+            cache_insert(iv_cache, (char *)iv, iv_len, NULL);
         }
     }
 
@@ -719,8 +720,9 @@ enc_key_init(int method, const char *pass)
         FATAL("Cannot generate key and IV");
     }
 
-    enc_iv_len = cipher_iv_size(&cipher);
-    enc_method = method;
+    enc_iv_len  = cipher_iv_size(&cipher);
+    enc_tag_len = supported_ciphers_tag_size[method];
+    enc_method  = method;
 }
 
 /* TODO: do we really need additional data input by user?
