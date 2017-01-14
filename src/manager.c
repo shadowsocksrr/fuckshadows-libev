@@ -523,7 +523,8 @@ check_port(struct manager_ctx *manager, struct server *server)
         sock_lock_t *old_sock_lock = NULL;
         bool new                   = false;
 
-        cork_hash_table_put(sock_table, (void *)sock_lock->port, (void *)sock_lock, &new, NULL, (void **)&old_sock_lock);
+        cork_hash_table_put(sock_table, (void *)sock_lock->port, (void *)sock_lock, &new, NULL,
+                            (void **)&old_sock_lock);
 
         if (old_sock_lock) {
             if (verbose) {
@@ -902,7 +903,7 @@ main(int argc, char **argv)
         { "executable",      required_argument, 0, 0 },
         { "mtu",             required_argument, 0, 0 },
         { "help",            no_argument,       0, 0 },
-        { 0,                 0,                 0, 0 }
+        {                 0,                 0, 0, 0 }
     };
 
     opterr = 0;

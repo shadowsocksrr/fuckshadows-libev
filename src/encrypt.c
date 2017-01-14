@@ -152,7 +152,7 @@ int
 balloc(buffer_t *ptr, size_t capacity)
 {
     sodium_memzero(ptr, sizeof(buffer_t));
-    ptr->data    = ss_malloc(capacity);
+    ptr->data     = ss_malloc(capacity);
     ptr->capacity = capacity;
     return capacity;
 }
@@ -164,7 +164,7 @@ brealloc(buffer_t *ptr, size_t len, size_t capacity)
         return -1;
     size_t real_capacity = max(len, capacity);
     if (ptr->capacity < real_capacity) {
-        ptr->data    = ss_realloc(ptr->data, real_capacity);
+        ptr->data     = ss_realloc(ptr->data, real_capacity);
         ptr->capacity = real_capacity;
     }
     return real_capacity;

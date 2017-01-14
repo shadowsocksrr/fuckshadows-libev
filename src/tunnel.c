@@ -116,6 +116,7 @@ setnonblocking(int fd)
     }
     return fcntl(fd, F_SETFL, flags | O_NONBLOCK);
 }
+
 #endif
 
 int
@@ -733,6 +734,7 @@ signal_cb(EV_P_ ev_signal *w, int revents)
         }
     }
 }
+
 #endif
 
 int
@@ -763,10 +765,10 @@ main(int argc, char **argv)
 
     int option_index                    = 0;
     static struct option long_options[] = {
-        { "mtu",         required_argument, 0, 0 },
-        { "mptcp",       no_argument,       0, 0 },
-        { "help",        no_argument,       0, 0 },
-        { 0,             0,                 0, 0 }
+        { "mtu",   required_argument, 0, 0 },
+        { "mptcp", no_argument,       0, 0 },
+        { "help",  no_argument,       0, 0 },
+        {       0,                 0, 0, 0 }
     };
 
     opterr = 0;

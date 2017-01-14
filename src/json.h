@@ -107,11 +107,11 @@ typedef struct _json_value {
             } *values;
 
 #if defined(__cplusplus) && __cplusplus >= 201103L
-            decltype(values) begin() const
+            decltype(values)begin() const
             {
                 return values;
             }
-            decltype(values) end() const
+            decltype(values)end() const
             {
                 return values + length;
             }
@@ -123,11 +123,11 @@ typedef struct _json_value {
             struct _json_value **values;
 
 #if defined(__cplusplus) && __cplusplus >= 201103L
-            decltype(values) begin() const
+            decltype(values)begin() const
             {
                 return values;
             }
-            decltype(values) end() const
+            decltype(values)end() const
             {
                 return values + length;
             }
@@ -146,11 +146,14 @@ typedef struct _json_value {
 
 public:
 
-    inline _json_value(){
+    inline _json_value()
+    {
         memset(this, 0, sizeof(_json_value));
     }
 
-    inline const struct _json_value &operator [] (int index) const {
+    inline const struct _json_value &
+    operator [](int index) const
+    {
         if (type != json_array || index < 0
             || ((unsigned int)index) >= u.array.length) {
             return json_value_none;
@@ -159,7 +162,9 @@ public:
         return *u.array.values[index];
     }
 
-    inline const struct _json_value &operator [] (const char *index) const {
+    inline const struct _json_value &
+    operator [](const char *index) const
+    {
         if (type != json_object) {
             return json_value_none;
         }
@@ -172,7 +177,8 @@ public:
         return json_value_none;
     }
 
-    inline operator const char * () const
+    inline
+    operator const char *() const
     {
         switch (type) {
         case json_string:
@@ -183,7 +189,8 @@ public:
         }
     }
 
-    inline operator
+    inline
+    operator
     json_int_t() const
     {
         switch (type) {
@@ -198,7 +205,8 @@ public:
         }
     }
 
-    inline operator
+    inline
+    operator
     bool() const
     {
         if (type != json_boolean) {
@@ -208,7 +216,8 @@ public:
         return u.boolean != 0;
     }
 
-    inline operator double () const
+    inline
+    operator double() const
     {
         switch (type) {
         case json_integer:

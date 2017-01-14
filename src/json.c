@@ -820,7 +820,7 @@ whitespace:
                         top->u.dbl *=
                             pow(10,
                                 (double)((flags &
-                                         flag_num_e_negative) ? -num_e : num_e));
+                                          flag_num_e_negative) ? -num_e : num_e));
                     }
 
                     if (flags & flag_num_negative) {

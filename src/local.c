@@ -152,6 +152,7 @@ setnonblocking(int fd)
     }
     return fcntl(fd, F_SETFL, flags | O_NONBLOCK);
 }
+
 #endif
 
 int
@@ -236,6 +237,7 @@ launch_or_create(const char *addr, const char *port)
     }
     return -1;
 }
+
 #endif
 
 static void
@@ -648,7 +650,7 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
 
             if (acl) {
                 int host_match = acl_match_host(host);
-                int bypass = 0;
+                int bypass     = 0;
                 if (host_match > 0)
                     bypass = 1;                 // bypass hostnames in black list
                 else if (host_match < 0)
@@ -656,15 +658,15 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
                 else {
                     int ip_match = acl_match_host(ip);
                     switch (get_acl_mode()) {
-                        case BLACK_LIST:
-                            if (ip_match > 0)
-                                bypass = 1;               // bypass IPs in black list
-                            break;
-                        case WHITE_LIST:
-                            bypass = 1;
-                            if (ip_match < 0)
-                                bypass = 0;               // proxy IPs in white list
-                            break;
+                    case BLACK_LIST:
+                        if (ip_match > 0)
+                            bypass = 1;                   // bypass IPs in black list
+                        break;
+                    case WHITE_LIST:
+                        bypass = 1;
+                        if (ip_match < 0)
+                            bypass = 0;                   // proxy IPs in white list
+                        break;
                     }
                 }
 
@@ -1195,12 +1197,12 @@ main(int argc, char **argv)
 
     int option_index                    = 0;
     static struct option long_options[] = {
-        { "fast-open",   no_argument,       0, 0 },
-        { "acl",         required_argument, 0, 0 },
-        { "mtu",         required_argument, 0, 0 },
-        { "mptcp",       no_argument,       0, 0 },
-        { "help",        no_argument,       0, 0 },
-        { 0,             0,                 0, 0 }
+        { "fast-open", no_argument,       0, 0 },
+        { "acl",       required_argument, 0, 0 },
+        { "mtu",       required_argument, 0, 0 },
+        { "mptcp",     no_argument,       0, 0 },
+        { "help",      no_argument,       0, 0 },
+        {           0,                 0, 0, 0 }
     };
 
     opterr = 0;

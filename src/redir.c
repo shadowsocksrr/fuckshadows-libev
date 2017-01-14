@@ -92,7 +92,7 @@ static int ipv6first = 0;
 static int mode      = TCP_ONLY;
 static int auth      = 0;
 #ifdef HAVE_SETRLIMIT
-static int nofile    = 0;
+static int nofile = 0;
 #endif
 
 static struct ev_signal sigint_watcher;
@@ -439,7 +439,7 @@ remote_send_cb(EV_P_ ev_io *w, int revents)
             balloc(abuf, BUF_SIZE);
 
             if (server->hostname_len > 0
-                    && validate_hostname(server->hostname, server->hostname_len)) { // HTTP/SNI
+                && validate_hostname(server->hostname, server->hostname_len)) {     // HTTP/SNI
                 uint16_t port;
                 if (AF_INET6 == server->destaddr.ss_family) { // IPv6
                     port = (((struct sockaddr_in6 *)&(server->destaddr))->sin6_port);
@@ -795,10 +795,10 @@ main(int argc, char **argv)
 
     int option_index                    = 0;
     static struct option long_options[] = {
-        { "mtu",         required_argument, 0, 0 },
-        { "mptcp",       no_argument,       0, 0 },
-        { "help",        no_argument,       0, 0 },
-        { 0,             0,                 0, 0 }
+        { "mtu",   required_argument, 0, 0 },
+        { "mptcp", no_argument,       0, 0 },
+        { "help",  no_argument,       0, 0 },
+        {       0,                 0, 0, 0 }
     };
 
     opterr = 0;

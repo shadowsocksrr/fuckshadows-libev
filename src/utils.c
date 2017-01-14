@@ -89,7 +89,8 @@ ss_itoa(int i)
 }
 
 int
-ss_isnumeric(const char *s) {
+ss_isnumeric(const char *s)
+{
     if (!s || !*s)
         return 0;
     while (isdigit((unsigned char)*s))
@@ -129,7 +130,7 @@ run_as(const char *user)
              * which returns its result in a statically allocated buffer and
              * cannot be considered thread safe. */
             err = uid >= 0 ? getpwuid_r((uid_t)uid, &pwdbuf, buf, buflen, &pwd)
-                : getpwnam_r(user, &pwdbuf, buf, buflen, &pwd);
+                  : getpwnam_r(user, &pwdbuf, buf, buflen, &pwd);
 
             if (err == 0 && pwd) {
                 /* setgid first, because we may not be allowed to do it anymore after setuid */
@@ -157,7 +158,7 @@ run_as(const char *user)
             } else if (err != ERANGE) {
                 if (err) {
                     LOGE("run_as user '%s' could not be found: %s", user,
-                            strerror(err));
+                         strerror(err));
                 } else {
                     LOGE("run_as user '%s' could not be found.", user);
                 }
@@ -176,7 +177,7 @@ run_as(const char *user)
         /* No getpwnam_r() :-(  We'll use getpwnam() and hope for the best. */
         struct passwd *pwd;
 
-        if (!(pwd = uid >=0 ? getpwuid((uid_t)uid) : getpwnam(user))) {
+        if (!(pwd = uid >= 0 ? getpwuid((uid_t)uid) : getpwnam(user))) {
             LOGE("run_as user %s could not be found.", user);
             return 0;
         }
