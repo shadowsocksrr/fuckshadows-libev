@@ -128,7 +128,7 @@ static const char *supported_ciphers_mbedtls[CIPHER_NUM] = {
 static const int supported_ciphers_iv_size[CIPHER_NUM] = {
     12, 12, 12, 8, 12,
 #ifdef FS_HAVE_XCHACHA20IETF
-    12
+    24
 #endif
 };
 
@@ -249,9 +249,13 @@ rand_bytes(void *output, int len)
     return 0;
 }
 
+/* nsec: always NULL
+ * npub: nonce
+ */
 int
 sodium_aead_encrypt(unsigned char *c,
-                    unsigned long long *clen_p,
+                    unsigned char *mac,
+                    unsigned long long *maclen_p,
                     const unsigned char *m,
                     unsigned long long mlen,
                     const unsigned char *ad,
@@ -263,12 +267,12 @@ sodium_aead_encrypt(unsigned char *c,
 {
     switch (method) {
     case CHACHA20POLY1305:
-        return crypto_aead_chacha20poly1305_encrypt(c, clen_p, m, mlen, ad, adlen, nsec, npub, k);
+        return crypto_aead_chacha20poly1305_encrypt_detached(c, mac, maclen_p, m, mlen, ad, adlen, nsec, npub, k);
     case CHACHA20POLY1305IETF:
-        return crypto_aead_chacha20poly1305_ietf_encrypt(c, clen_p, m, mlen, ad, adlen, nsec, npub, k);
+        return crypto_aead_chacha20poly1305_ietf_encrypt_detached(c, mac, maclen_p, m, mlen, ad, adlen, nsec, npub, k);
 #ifdef FS_HAVE_XCHACHA20IETF
     case XCHACHA20POLY1305IETF:
-        return crypto_aead_xchacha20poly1305_ietf_encrypt(c, clen_p, m, mlen, ad, adlen, nsec, npub, k);
+        return crypto_aead_xchacha20poly1305_ietf_encrypt_detached(c, mac, maclen_p, m, mlen, ad, adlen, nsec, npub, k);
 #endif
     }
     // We should not reach here.
@@ -277,10 +281,10 @@ sodium_aead_encrypt(unsigned char *c,
 
 int
 sodium_aead_decrypt(unsigned char *m,
-                    unsigned long long *mlen_p,
                     unsigned char *nsec,
                     const unsigned char *c,
                     unsigned long long clen,
+                    const unsigned char *mac,
                     const unsigned char *ad,
                     unsigned long long adlen,
                     const unsigned char *npub,
@@ -289,12 +293,12 @@ sodium_aead_decrypt(unsigned char *m,
 {
     switch (method) {
     case CHACHA20POLY1305:
-        return crypto_aead_chacha20poly1305_decrypt(m, mlen_p, nsec, c, clen, ad, adlen, npub, k);
+        return crypto_aead_chacha20poly1305_decrypt_detached(m, nsec, c, clen, mac, ad, adlen, npub, k);
     case CHACHA20POLY1305IETF:
-        return crypto_aead_chacha20poly1305_ietf_decrypt(m, mlen_p, nsec, c, clen, ad, adlen, npub, k);
+        return crypto_aead_chacha20poly1305_ietf_decrypt_detached(m, nsec, c, clen, mac, ad, adlen, npub, k);
 #ifdef FS_HAVE_XCHACHA20IETF
     case XCHACHA20POLY1305IETF:
-        return crypto_aead_xchacha20poly1305_ietf_decrypt(m, mlen_p, nsec, c, clen, ad, adlen, npub, k);
+        return crypto_aead_xchacha20poly1305_ietf_decrypt_detached(m, nsec, c, clen, mac, ad, adlen, npub, k);
 #endif
     }
     // We should not reach here.

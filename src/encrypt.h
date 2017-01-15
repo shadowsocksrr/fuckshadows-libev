@@ -62,10 +62,12 @@ typedef mbedtls_cipher_context_t cipher_evp_t;
 #define MAX_TAG_LENGTH 16U
 
 /* In general, most of them are 32U */
-#define MAX_KEY_LENGTH 64U
+#define MAX_KEY_LENGTH 32U
 
-/* In general, max IV len is 16U */
-#define MAX_IV_LENGTH MBEDTLS_MAX_IV_LENGTH
+/* Currently, the max one is XCHACHA20POLY1305IETF
+ * more specifically, nonce
+ */
+#define MAX_IV_LENGTH 24U
 
 #ifndef MBEDTLS_GCM_C
 #error No GCM support detected
