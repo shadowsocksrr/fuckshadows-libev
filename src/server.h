@@ -52,7 +52,6 @@ typedef struct server_ctx {
 typedef struct server {
     int fd;
     int stage;
-    int auth;
     int frag;
 
     buffer_t *buf;

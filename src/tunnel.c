@@ -95,7 +95,6 @@ int keep_resolving = 1;
 
 static int ipv6first = 0;
 static int mode      = TCP_ONLY;
-static int auth      = 0;
 #ifdef HAVE_SETRLIMIT
 static int nofile = 0;
 #endif
@@ -206,10 +205,6 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
     }
 
     remote->buf->len = r;
-
-    if (auth) {
-        ss_gen_hash(remote->buf, &remote->counter, server->e_ctx, BUF_SIZE);
-    }
 
     int err = ss_encrypt(remote->buf, server->e_ctx, BUF_SIZE);
 
@@ -438,11 +433,6 @@ remote_send_cb(EV_P_ ev_io *w, int revents)
             uint16_t port = htons(atoi(sa->port));
             memcpy(abuf->data + abuf->len, &port, 2);
             abuf->len += 2;
-
-            if (auth) {
-                abuf->data[0] |= ONETIMEAUTH_FLAG;
-                ss_onetimeauth(abuf, server->e_ctx->evp.iv, BUF_SIZE);
-            }
 
             int err = ss_encrypt(abuf, server->e_ctx, BUF_SIZE);
 
@@ -776,10 +766,10 @@ main(int argc, char **argv)
     USE_TTY();
 
 #ifdef ANDROID
-    while ((c = getopt_long(argc, argv, "f:s:p:l:k:t:m:i:c:b:L:a:n:P:huUvVA6",
+    while ((c = getopt_long(argc, argv, "f:s:p:l:k:t:m:i:c:b:L:a:n:P:huUvV6",
                             long_options, &option_index)) != -1) {
 #else
-    while ((c = getopt_long(argc, argv, "f:s:p:l:k:t:m:i:c:b:L:a:n:huUvA6",
+    while ((c = getopt_long(argc, argv, "f:s:p:l:k:t:m:i:c:b:L:a:n:huUv6",
                             long_options, &option_index)) != -1) {
 #endif
         switch (c) {
@@ -852,9 +842,6 @@ main(int argc, char **argv)
         case 'h':
             usage();
             exit(EXIT_SUCCESS);
-        case 'A':
-            auth = 1;
-            break;
         case '6':
             ipv6first = 1;
             break;
@@ -913,9 +900,6 @@ main(int argc, char **argv)
         if (user == NULL) {
             user = conf->user;
         }
-        if (auth == 0) {
-            auth = conf->auth;
-        }
         if (tunnel_addr_str == NULL) {
             tunnel_addr_str = conf->tunnel_address;
         }
@@ -973,10 +957,6 @@ main(int argc, char **argv)
 
     if (ipv6first) {
         LOGI("resolving hostname to IPv6 address first");
-    }
-
-    if (auth) {
-        LOGI("onetime authentication enabled");
     }
 
     // parse tunnel addr
@@ -1053,7 +1033,7 @@ main(int argc, char **argv)
         LOGI("UDP relay enabled");
         init_udprelay(local_addr, local_port, listen_ctx.remote_addr[0],
                       get_sockaddr_len(listen_ctx.remote_addr[0]),
-                      tunnel_addr, mtu, m, auth, listen_ctx.timeout, iface);
+                      tunnel_addr, mtu, m, listen_ctx.timeout, iface);
     }
 
     if (mode == UDP_ONLY) {

@@ -29,12 +29,10 @@
 
 #ifdef max
 #undef max
-#define max(a, b) (((a) > (b)) ? (a) : (b))
 #endif
 
 #ifdef min
 #undef min
-#define min(a, b) (((a) < (b)) ? (a) : (b))
 #endif
 
 #endif
@@ -48,9 +46,11 @@
 
 #include <mbedtls/cipher.h>
 
-/* TODO: replace with gcm cipher context type */
 typedef mbedtls_cipher_info_t cipher_kt_t;
 typedef mbedtls_cipher_context_t cipher_evp_t;
+
+/* just a random number now */
+#define MAX_ADDITIONAL_DATA_LEN 256
 
 /* The length of MAC tag
  * libsodium only outputs exactly *_ABYTES
@@ -60,21 +60,25 @@ typedef mbedtls_cipher_context_t cipher_evp_t;
  */
 #define MAX_TAG_LENGTH 16U
 
-/* In general, most of them are 32U, we make it a little larger */
+/* In general, most of them are 32U */
 #define MAX_KEY_LENGTH 64U
 
 /* In general, max IV len is 16U */
 #define MAX_IV_LENGTH MBEDTLS_MAX_IV_LENGTH
 
+/*
+ #ifndef MBEDTLS_MODE_GCM
+ #error No GCM support detected
+ #endif
+ */
+
 #endif
 
-#define SODIUM_BLOCK_SIZE   64
+// #define SODIUM_BLOCK_SIZE   64
 #define ADDRTYPE_MASK 0xF
 
-/* to be determined */
-#define AEAD_BYTES 10U
-#define CHUNKLEN_BYTES 2U
-#define AUTH_BYTES (AEAD_BYTES + CHUNKLEN_BYTES)
+#define max(a, b) (((a) > (b)) ? (a) : (b))
+#define min(a, b) (((a) < (b)) ? (a) : (b))
 
 typedef struct {
     cipher_evp_t *evp;
@@ -93,7 +97,10 @@ typedef struct {
 #include <inttypes.h>
 #endif
 
-#define CIPHER_NUM          7
+// currently, XCHACHA20POLY1305IETF is not released yet
+// XCHACHA20POLY1305 is removed in upstream
+#define CIPHER_NUM              5
+// #define CIPHER_NUM              6
 
 /* now focus on chacha20-poly1305 */
 #define NONE                    (-1)
@@ -107,8 +114,7 @@ typedef struct {
  */
 #define CHACHA20POLY1305        3
 #define CHACHA20POLY1305IETF    4
-#define XCHACHA20POLY1305       5
-#define XCHACHA20POLY1305IETF   6
+#define XCHACHA20POLY1305IETF   5
 
 typedef struct buffer {
     size_t idx;
@@ -126,26 +132,22 @@ typedef struct chunk {
 
 typedef struct enc_ctx {
     uint8_t init;
-    uint64_t counter;
     cipher_ctx_t evp;
 } enc_ctx_t;
 
-int ss_encrypt_all(buffer_t *plaintext, int method, int auth, size_t capacity);
-int ss_decrypt_all(buffer_t *ciphertext, int method, int auth, size_t capacity);
+/* for udprelay */
+int ss_encrypt_all(buffer_t *plaintext, int method, size_t capacity);
+int ss_decrypt_all(buffer_t *ciphertext, int method, size_t capacity);
+
+/* for local, redir, manager, etc */
 int ss_encrypt(buffer_t *plaintext, enc_ctx_t *ctx, size_t capacity);
 int ss_decrypt(buffer_t *ciphertext, enc_ctx_t *ctx, size_t capacity);
 
 void enc_ctx_init(int method, enc_ctx_t *ctx, int enc);
 int enc_init(const char *pass, const char *method);
 int enc_get_iv_len(void);
+int enc_get_tag_len(void);
 void cipher_context_release(cipher_ctx_t *evp);
-unsigned char *enc_md5(const unsigned char *d, size_t n, unsigned char *md);
-
-int ss_onetimeauth(buffer_t *buf, uint8_t *iv, size_t capacity);
-int ss_onetimeauth_verify(buffer_t *buf, uint8_t *iv);
-
-int ss_check_hash(buffer_t *buf, chunk_t *chunk, enc_ctx_t *ctx, size_t capacity);
-int ss_gen_hash(buffer_t *buf, uint32_t *counter, enc_ctx_t *ctx, size_t capacity);
 
 int balloc(buffer_t *ptr, size_t capacity);
 int brealloc(buffer_t *ptr, size_t len, size_t capacity);

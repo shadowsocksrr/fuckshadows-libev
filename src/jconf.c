@@ -203,10 +203,6 @@ read_jconf(const char *file)
                 check_json_value_type(value, json_boolean,
                                       "invalid config file: option 'fast_open' must be a boolean");
                 conf.fast_open = value->u.boolean;
-            } else if (strcmp(name, "auth") == 0) {
-                check_json_value_type(value, json_boolean,
-                                      "invalid config file: option 'auth' must be a boolean");
-                conf.auth = value->u.boolean;
             } else if (strcmp(name, "nofile") == 0) {
                 check_json_value_type(value, json_integer,
                                       "invalid config file: option 'nofile' must be an integer");

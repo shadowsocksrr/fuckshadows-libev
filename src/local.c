@@ -102,7 +102,6 @@ char *prefix;
 #endif
 
 static int acl       = 0;
-static int auth      = 0;
 static int mode      = TCP_ONLY;
 static int ipv6first = 0;
 static int fast_open = 0;
@@ -297,10 +296,6 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
                 LOGE("invalid remote");
                 close_and_free_server(EV_A_ server);
                 return;
-            }
-
-            if (!remote->direct && remote->send_ctx->connected && auth) {
-                ss_gen_hash(remote->buf, &remote->counter, server->e_ctx, BUF_SIZE);
             }
 
             // insert shadowsocks header
@@ -703,14 +698,6 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
             }
 
             if (!remote->direct) {
-                if (auth) {
-                    abuf->data[0] |= ONETIMEAUTH_FLAG;
-                    ss_onetimeauth(abuf, server->e_ctx->evp.iv, BUF_SIZE);
-                }
-
-                if (buf->len > 0 && auth) {
-                    ss_gen_hash(buf, &remote->counter, server->e_ctx, BUF_SIZE);
-                }
 
                 brealloc(remote->buf, buf->len + abuf->len, BUF_SIZE);
                 memcpy(remote->buf->data, abuf->data, abuf->len);
@@ -1210,10 +1197,10 @@ main(int argc, char **argv)
     USE_TTY();
 
 #ifdef ANDROID
-    while ((c = getopt_long(argc, argv, "f:s:p:l:k:t:m:i:c:b:a:n:P:huUvVA6",
+    while ((c = getopt_long(argc, argv, "f:s:p:l:k:t:m:i:c:b:a:n:P:huUvV6",
                             long_options, &option_index)) != -1) {
 #else
-    while ((c = getopt_long(argc, argv, "f:s:p:l:k:t:m:i:c:b:a:n:huUvA6",
+    while ((c = getopt_long(argc, argv, "f:s:p:l:k:t:m:i:c:b:a:n:huUv6",
                             long_options, &option_index)) != -1) {
 #endif
         switch (c) {
@@ -1288,9 +1275,6 @@ main(int argc, char **argv)
         case 'h':
             usage();
             exit(EXIT_SUCCESS);
-        case 'A':
-            auth = 1;
-            break;
         case '6':
             ipv6first = 1;
             break;
@@ -1347,9 +1331,6 @@ main(int argc, char **argv)
         }
         if (user == NULL) {
             user = conf->user;
-        }
-        if (auth == 0) {
-            auth = conf->auth;
         }
         if (fast_open == 0) {
             fast_open = conf->fast_open;
@@ -1420,10 +1401,6 @@ main(int argc, char **argv)
 
     if (ipv6first) {
         LOGI("resolving hostname to IPv6 address first");
-    }
-
-    if (auth) {
-        LOGI("onetime authentication enabled");
     }
 
 #ifdef __MINGW32__
@@ -1498,7 +1475,7 @@ main(int argc, char **argv)
     if (mode != TCP_ONLY) {
         LOGI("udprelay enabled");
         init_udprelay(local_addr, local_port, listen_ctx.remote_addr[0],
-                      get_sockaddr_len(listen_ctx.remote_addr[0]), mtu, m, auth, listen_ctx.timeout, iface);
+                      get_sockaddr_len(listen_ctx.remote_addr[0]), mtu, m, listen_ctx.timeout, iface);
     }
 
 #ifdef HAVE_LAUNCHD
