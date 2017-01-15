@@ -69,7 +69,7 @@
  * +--------+-------+----------+
  *
  * NONCE and TAG are the max length
- * of available methods. (16 + 16)
+ * of available methods. (12 + 16)
  *
  */
 
@@ -126,7 +126,7 @@ static const char *supported_ciphers_mbedtls[CIPHER_NUM] = {
 #endif
 
 static const int supported_ciphers_iv_size[CIPHER_NUM] = {
-    16, 16, 16, 8, 12,
+    12, 12, 12, 8, 12,
 #ifdef FS_HAVE_XCHACHA20IETF
     12
 #endif
