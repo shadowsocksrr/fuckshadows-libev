@@ -52,6 +52,27 @@
 #include "encrypt.h"
 #include "utils.h"
 
+/*
+ *
+ * TCP and UDP
+ * +----------+
+ * | Payload  |
+ * +----------+
+ * | Variable |
+ * +----------+
+ *
+ * Cipher Text (Payload)
+ * +--------+-------+----------+
+ * | NONCE  |  TAG  |  DATA    |
+ * +--------+-------+----------+
+ * | Fixed  | Fixed | Variable |
+ * +--------+-------+----------+
+ *
+ * NONCE and TAG are the max length
+ * of available methods. (16 + 16)
+ *
+ */
+
 /* several global vars
  *
  *
