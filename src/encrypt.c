@@ -82,8 +82,10 @@ static const char *supported_ciphers[CIPHER_NUM] = {
     "aes-192-gcm",
     "aes-256-gcm",
     "chacha20-poly1305",
-    "chacha20-poly1305-ietf"
-//    "xchacha20-poly1305-ietf"
+    "chacha20-poly1305-ietf",
+#ifdef FS_HAVE_XCHACHA20IETF
+    "xchacha20-poly1305-ietf"
+#endif
 };
 
 /*
@@ -95,21 +97,32 @@ static const char *supported_ciphers_mbedtls[CIPHER_NUM] = {
     "AES-192-GCM",
     "AES-256-GCM",
     CIPHER_UNSUPPORTED,
+    CIPHER_UNSUPPORTED,
+#ifdef FS_HAVE_XCHACHA20IETF
     CIPHER_UNSUPPORTED
-//    CIPHER_UNSUPPORTED
+#endif
 };
 #endif
 
 static const int supported_ciphers_iv_size[CIPHER_NUM] = {
-    16, 16, 16, 8, 12/*, 12 */
+    16, 16, 16, 8, 12,
+#ifdef FS_HAVE_XCHACHA20IETF
+    12
+#endif
 };
 
 static const int supported_ciphers_key_size[CIPHER_NUM] = {
-    16, 24, 32, 32, 32/*, 32 */
+    16, 24, 32, 32, 32,
+#ifdef FS_HAVE_XCHACHA20IETF
+    32
+#endif
 };
 
 static const int supported_ciphers_tag_size[CIPHER_NUM] = {
-    16, 16, 16, 16, 16/*, 16 */
+    16, 16, 16, 16, 16,
+#ifdef FS_HAVE_XCHACHA20IETF
+    16
+#endif
 };
 
 int
@@ -232,8 +245,10 @@ sodium_aead_encrypt(unsigned char *c,
         return crypto_aead_chacha20poly1305_encrypt(c, clen_p, m, mlen, ad, adlen, nsec, npub, k);
     case CHACHA20POLY1305IETF:
         return crypto_aead_chacha20poly1305_ietf_encrypt(c, clen_p, m, mlen, ad, adlen, nsec, npub, k);
-//    case XCHACHA20POLY1305IETF:
-//        return crypto_aead_xchacha20poly1305_ietf_encrypt(c, clen_p, m, mlen, ad, adlen, nsec, npub, k);
+#ifdef FS_HAVE_XCHACHA20IETF
+    case XCHACHA20POLY1305IETF:
+        return crypto_aead_xchacha20poly1305_ietf_encrypt(c, clen_p, m, mlen, ad, adlen, nsec, npub, k);
+#endif
     }
     // We should not reach here.
     return -2;
@@ -256,8 +271,10 @@ sodium_aead_decrypt(unsigned char *m,
         return crypto_aead_chacha20poly1305_decrypt(m, mlen_p, nsec, c, clen, ad, adlen, npub, k);
     case CHACHA20POLY1305IETF:
         return crypto_aead_chacha20poly1305_ietf_decrypt(m, mlen_p, nsec, c, clen, ad, adlen, npub, k);
-//    case XCHACHA20POLY1305IETF:
-//        return crypto_aead_xchacha20poly1305_ietf_decrypt(m, mlen_p, nsec, c, clen, ad, adlen, npub, k);
+#ifdef FS_HAVE_XCHACHA20IETF
+    case XCHACHA20POLY1305IETF:
+        return crypto_aead_xchacha20poly1305_ietf_decrypt(m, mlen_p, nsec, c, clen, ad, adlen, npub, k);
+#endif
     }
     // We should not reach here.
     return -2;
@@ -322,6 +339,15 @@ cipher_context_init(cipher_ctx_t *ctx, int method, int enc)
     if (mbedtls_cipher_setup(evp, cipher) != 0) {
         FATAL("Cannot initialize mbed TLS cipher context");
     }
+    if (mbedtls_cipher_setkey(evp, enc_key, enc_key_len * 8, enc) != 0) {
+        mbedtls_cipher_free(evp);
+        FATAL("Cannot set mbed TLS cipher key");
+    }
+
+#ifdef DEBUG
+    dump("KEY", (char *)enc_key, enc_key_len);
+#endif
+
 #endif
 }
 
@@ -348,10 +374,6 @@ cipher_context_set_iv(cipher_ctx_t *ctx, uint8_t *iv, size_t iv_len,
         return;
     }
 #if defined(USE_CRYPTO_MBEDTLS)
-    if (mbedtls_cipher_setkey(evp, enc_key, enc_key_len * 8, enc) != 0) {
-        mbedtls_cipher_free(evp);
-        FATAL("Cannot set mbed TLS cipher key");
-    }
 
     if (mbedtls_cipher_set_iv(evp, iv, iv_len) != 0) {
         mbedtls_cipher_free(evp);
@@ -364,7 +386,6 @@ cipher_context_set_iv(cipher_ctx_t *ctx, uint8_t *iv, size_t iv_len,
 #endif
 
 #ifdef DEBUG
-    dump("KEY", (char *)enc_key, enc_key_len);
     dump("IV", (char *)iv, iv_len);
 #endif
 }

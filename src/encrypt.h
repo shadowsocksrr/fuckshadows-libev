@@ -44,6 +44,7 @@
 
 #if defined(USE_CRYPTO_MBEDTLS)
 
+#include <mbedtls/config.h>
 #include <mbedtls/cipher.h>
 
 typedef mbedtls_cipher_info_t cipher_kt_t;
@@ -66,12 +67,14 @@ typedef mbedtls_cipher_context_t cipher_evp_t;
 /* In general, max IV len is 16U */
 #define MAX_IV_LENGTH MBEDTLS_MAX_IV_LENGTH
 
-/*
- #ifndef MBEDTLS_MODE_GCM
- #error No GCM support detected
- #endif
- */
+#ifndef MBEDTLS_GCM_C
+#error No GCM support detected
+#endif
 
+#endif
+
+#ifdef crypto_aead_xchacha20poly1305_ietf_ABYTES
+#define FS_HAVE_XCHACHA20IETF
 #endif
 
 // #define SODIUM_BLOCK_SIZE   64
@@ -99,10 +102,13 @@ typedef struct {
 
 // currently, XCHACHA20POLY1305IETF is not released yet
 // XCHACHA20POLY1305 is removed in upstream
-#define CIPHER_NUM              5
-// #define CIPHER_NUM              6
 
-/* now focus on chacha20-poly1305 */
+#ifdef FS_HAVE_XCHACHA20IETF
+#define CIPHER_NUM              6
+#else
+#define CIPHER_NUM              5
+#endif
+
 #define NONE                    (-1)
 #define AES128GCM               0
 #define AES192GCM               1
@@ -114,7 +120,10 @@ typedef struct {
  */
 #define CHACHA20POLY1305        3
 #define CHACHA20POLY1305IETF    4
+
+#ifdef FS_HAVE_XCHACHA20IETF
 #define XCHACHA20POLY1305IETF   5
+#endif
 
 typedef struct buffer {
     size_t idx;
