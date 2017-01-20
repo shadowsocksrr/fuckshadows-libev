@@ -67,7 +67,7 @@ typedef mbedtls_cipher_context_t cipher_evp_t;
 /* Currently, the max one is XCHACHA20POLY1305IETF
  * more specifically, nonce
  */
-#define MAX_IV_LENGTH 24U
+#define MAX_NONCE_LENGTH 24U
 
 #ifndef MBEDTLS_GCM_C
 #error No GCM support detected
@@ -79,7 +79,7 @@ typedef mbedtls_cipher_context_t cipher_evp_t;
 #define FS_HAVE_XCHACHA20IETF
 #endif
 
-// #define SODIUM_BLOCK_SIZE   64
+#define LENGTH_BYTES 2U
 #define ADDRTYPE_MASK 0xF
 
 #define max(a, b) (((a) > (b)) ? (a) : (b))
@@ -87,12 +87,12 @@ typedef mbedtls_cipher_context_t cipher_evp_t;
 
 typedef struct {
     cipher_evp_t *evp;
-    uint8_t iv[MAX_IV_LENGTH];
+    uint8_t nonce[MAX_NONCE_LENGTH];
 } cipher_ctx_t;
 
 typedef struct {
     cipher_kt_t *info;
-    size_t iv_len;
+    size_t nonce_len;
     size_t key_len;
 } cipher_t;
 
@@ -137,12 +137,13 @@ typedef struct buffer {
 typedef struct chunk {
     uint32_t idx;
     uint32_t len;
-    uint32_t counter;
+    uint32_t counter; /* for OTA HMAC key */
     buffer_t *buf;
 } chunk_t;
 
 typedef struct enc_ctx {
     uint8_t init;
+    uint64_t counter; /* for sodium padding */
     cipher_ctx_t evp;
 } enc_ctx_t;
 
@@ -156,7 +157,7 @@ int ss_decrypt(buffer_t *ciphertext, enc_ctx_t *ctx, size_t capacity);
 
 void enc_ctx_init(int method, enc_ctx_t *ctx, int enc);
 int enc_init(const char *pass, const char *method);
-int enc_get_iv_len(void);
+int enc_get_nonce_len(void);
 int enc_get_tag_len(void);
 void cipher_context_release(cipher_ctx_t *evp);
 

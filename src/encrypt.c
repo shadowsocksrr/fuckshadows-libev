@@ -53,23 +53,75 @@
 #include "utils.h"
 
 /*
+ * The main difference between OTA designed by madeye and this one is MtE vs EtM.
  *
- * TCP and UDP
+ * The first nonce is either from client or server side, it is generated via randombytes_buf()
+ * in libsodium, and the sequent nonces are incremented via sodium_increment() in libsodium.
+ * IMPORTANT: nonce should be used only once, let us running on the right track.
+ *
+ * Data.Len is used to separate general ciphertext and Auth tag. We can start decryption
+ * if and only if the verification is passed.
+ * Firstly, we do length check, then decrypt it, separate ciphertext and attached data tag
+ * based on the verified length, verify data tag and decrypt the corresponding data.
+ * Finally, do what you supposed to do, e.g. forward user data.
+ *
+ * For UDP, nonces are generated randomly without the incrementation.
+ *
+ * TCP request (before encryption)
+ * +------+---------------------+------------------+
+ * | ATYP | Destination Address | Destination Port |
+ * +------+---------------------+------------------+
+ * |  1   |       Variable      |         2        |
+ * +------+---------------------+------------------+
+ *
+ * TCP request (after encryption, *ciphertext*)
+ * +--------+----------------+--------------+--------------+---------------+
+ * | NONCE  | PayloadLen_TAG | *PayloadLen* | Payload_TAG  |   *Payload*   |
+ * +--------+----------------+--------------+--------------+---------------+
+ * | Fixed  |      Fixed     |       2      |     Fixed    |    Variable   |
+ * +--------+----------------+--------------+--------------+---------------+
+ *
+ * Payload input: atyp + dst.addr + dst.port
+ * PayloadLen is length(atyp + dst.addr + dst.port)
+ * Payload_TAG and PayloadLen_TAG are in plaintext
+ *
+ * TCP Chunk (before encryption)
  * +----------+
- * | Payload  |
+ * |  DATA    |
  * +----------+
  * | Variable |
  * +----------+
  *
- * Cipher Text (Payload)
- * +--------+-------+----------+
- * | NONCE  |  TAG  |  DATA    |
- * +--------+-------+----------+
- * | Fixed  | Fixed | Variable |
- * +--------+-------+----------+
+ * Data.Len is a 16-bit big-endian integer indicating the length of DATA.
  *
- * NONCE and TAG are the max length
- * of available methods. (12 + 16)
+ * TCP Chunk (after encryption, *ciphertext*)
+ * +--------------+------------+-----------+----------+
+ * | DATA_LEN_TAG | *DATA_LEN* |  DATA_TAG |  *DATA*  |
+ * +--------------+------------+-----------+----------+
+ * |    Fixed     |     2      |   Fixed   | Variable |
+ * +--------------+------------+-----------+----------+
+ *
+ * Len_TAG and DATA_TAG have the same length, they are in plaintext.
+ * After encryption, DATA -> DATA*
+ *
+ * UDP (before encryption)
+ * +------+---------------------+------------------+----------+
+ * | ATYP | Destination Address | Destination Port |   DATA   |
+ * +------+---------------------+------------------+----------+
+ * |  1   |       Variable      |         2        | Variable |
+ * +------+---------------------+------------------+----------+
+ *
+ * UDP (after encryption)
+ * +--------+----------+-----------+
+ * | NONCE  |  DATA*   |  DATA_TAG |
+ * +--------+----------+-----------+
+ * | Fixed  | Variable |  Fixed    |
+ * +--------+----------+-----------+
+ *
+ * DATA* is Encrypt(atyp + dst.addr + dst.port + DATA)
+ * RSV and FRAG are dropped
+ * Since UDP packet is either received completely or missed,
+ * we don't have to keep a field to track its length.
  *
  */
 
@@ -79,11 +131,11 @@
  */
 static uint8_t enc_key[MAX_KEY_LENGTH];
 static int enc_key_len;
-static int enc_iv_len;
+static int enc_nonce_len;
 static int enc_tag_len;
 static int enc_method;
 
-static struct cache *iv_cache;
+static struct cache *nonce_cache;
 
 #ifdef DEBUG
 static void
@@ -103,9 +155,9 @@ static const char *supported_ciphers[CIPHER_NUM] = {
     "aes-192-gcm",
     "aes-256-gcm",
     "chacha20-poly1305",
-    "chacha20-poly1305-ietf",
+    "chacha20-ietf-poly1305",
 #ifdef FS_HAVE_XCHACHA20IETF
-    "xchacha20-poly1305-ietf"
+    "xchacha20-ietf-poly1305"
 #endif
 };
 
@@ -125,7 +177,7 @@ static const char *supported_ciphers_mbedtls[CIPHER_NUM] = {
 };
 #endif
 
-static const int supported_ciphers_iv_size[CIPHER_NUM] = {
+static const int supported_ciphers_nonce_size[CIPHER_NUM] = {
     12, 12, 12, 8, 12,
 #ifdef FS_HAVE_XCHACHA20IETF
     24
@@ -182,9 +234,9 @@ bfree(buffer_t *ptr)
 }
 
 int
-enc_get_iv_len()
+enc_get_nonce_len()
 {
-    return enc_iv_len;
+    return enc_nonce_len;
 }
 
 int
@@ -194,7 +246,7 @@ enc_get_tag_len()
 }
 
 int
-cipher_iv_size(const cipher_t *cipher)
+cipher_nonce_size(const cipher_t *cipher)
 {
 #if defined(USE_CRYPTO_MBEDTLS)
     if (cipher == NULL) {
@@ -204,6 +256,11 @@ cipher_iv_size(const cipher_t *cipher)
 #endif
 }
 
+/*
+ * return key size form cipher info structure
+ * return our fake one for those don't need
+ * cipher context
+ */
 int
 cipher_key_size(const cipher_t *cipher)
 {
@@ -211,14 +268,13 @@ cipher_key_size(const cipher_t *cipher)
     if (cipher == NULL) {
         return 0;
     }
-    /* From Version 1.2.7 released 2013-04-13 Default Blowfish keysize is now 128-bits */
     return cipher->info->key_bitlen / 8;
 #endif
 }
 
 /*
- * TODO: convert to Argon2 password hashing
- *
+ * XXX: I know we should use real password hashing
+ * algorithm. Does it a overkill?
  */
 int
 derive_key(const cipher_t *cipher,
@@ -249,10 +305,11 @@ rand_bytes(void *output, int len)
     return 0;
 }
 
-/* nsec: always NULL
+/*
+ * nsec: always NULL
  * npub: nonce
  */
-int
+static int
 sodium_aead_encrypt(unsigned char *c,
                     unsigned char *mac,
                     unsigned long long *maclen_p,
@@ -279,7 +336,7 @@ sodium_aead_encrypt(unsigned char *c,
     return -2;
 }
 
-int
+static int
 sodium_aead_decrypt(unsigned char *m,
                     unsigned char *nsec,
                     const unsigned char *c,
@@ -343,7 +400,7 @@ cipher_context_init(cipher_ctx_t *ctx, int method, int enc)
     }
 
     if (method >= CHACHA20POLY1305) {
-        enc_iv_len = supported_ciphers_iv_size[method];
+        enc_nonce_len = supported_ciphers_nonce_size[method];
         return;
     }
 
@@ -368,6 +425,10 @@ cipher_context_init(cipher_ctx_t *ctx, int method, int enc)
         mbedtls_cipher_free(evp);
         FATAL("Cannot set mbed TLS cipher key");
     }
+    if (mbedtls_cipher_reset(evp) != 0) {
+        mbedtls_cipher_free(evp);
+        FATAL("Cannot finish preparation of mbed TLS cipher context");
+    }
 
 #ifdef DEBUG
     dump("KEY", (char *)enc_key, enc_key_len);
@@ -376,55 +437,59 @@ cipher_context_init(cipher_ctx_t *ctx, int method, int enc)
 #endif
 }
 
-void
-cipher_context_set_iv(cipher_ctx_t *ctx, uint8_t *iv, size_t iv_len,
-                      int enc)
-{
-    if (iv == NULL) {
-        LOGE("cipher_context_set_iv(): IV is null");
-        return;
-    }
+/*
+ * void
+ * cipher_context_set_iv(cipher_ctx_t *ctx, uint8_t *iv, size_t iv_len,
+ *                    int enc)
+ * {
+ *  if (iv == NULL) {
+ *      LOGE("cipher_context_set_iv(): IV is null");
+ *      return;
+ *  }
+ *
+ *  if (!enc) {
+ *      memcpy(ctx->iv, iv, iv_len);
+ *  }
+ *
+ *  if (enc_method >= CHACHA20POLY1305) {
+ *      return;
+ *  }
+ *
+ *  cipher_evp_t *evp = ctx->evp;
+ *  if (evp == NULL) {
+ *      LOGE("cipher_context_set_iv(): Cipher context is null");
+ *      return;
+ *  }
+ #if defined(USE_CRYPTO_MBEDTLS)
+ *
+ *  if (mbedtls_cipher_set_iv(evp, iv, iv_len) != 0) {
+ *      mbedtls_cipher_free(evp);
+ *      FATAL("Cannot set mbed TLS cipher IV");
+ *  }
+ *  if (mbedtls_cipher_reset(evp) != 0) {
+ *      mbedtls_cipher_free(evp);
+ *      FATAL("Cannot finish preparation of mbed TLS cipher context");
+ *  }
+ #endif
+ *
+ #ifdef DEBUG
+ *  dump("IV", (char *)iv, iv_len);
+ #endif
+ * }
+ */
 
-    if (!enc) {
-        memcpy(ctx->iv, iv, iv_len);
-    }
-
-    if (enc_method >= CHACHA20POLY1305) {
-        return;
-    }
-
-    cipher_evp_t *evp = ctx->evp;
-    if (evp == NULL) {
-        LOGE("cipher_context_set_iv(): Cipher context is null");
-        return;
-    }
-#if defined(USE_CRYPTO_MBEDTLS)
-
-    if (mbedtls_cipher_set_iv(evp, iv, iv_len) != 0) {
-        mbedtls_cipher_free(evp);
-        FATAL("Cannot set mbed TLS cipher IV");
-    }
-    if (mbedtls_cipher_reset(evp) != 0) {
-        mbedtls_cipher_free(evp);
-        FATAL("Cannot finish preparation of mbed TLS cipher context");
-    }
-#endif
-
-#ifdef DEBUG
-    dump("IV", (char *)iv, iv_len);
-#endif
-}
-
-static int
-cipher_context_update(cipher_ctx_t *ctx, uint8_t *output, size_t *olen,
-                      const uint8_t *input, size_t ilen)
-{
-    cipher_evp_t *evp = ctx->evp;
-#if defined(USE_CRYPTO_MBEDTLS)
-    return !mbedtls_cipher_update(evp, (const uint8_t *)input, ilen,
-                                  (uint8_t *)output, olen);
-#endif
-}
+/*
+ * static int
+ * cipher_context_update(cipher_ctx_t *ctx, uint8_t *output, size_t *olen,
+ *                    const uint8_t *input, size_t ilen)
+ * {
+ *  cipher_evp_t *evp = ctx->evp;
+ #if defined(USE_CRYPTO_MBEDTLS)
+ *  return !mbedtls_cipher_update(evp, (const uint8_t *)input, ilen,
+ *                                (uint8_t *)output, olen);
+ #endif
+ * }
+ */
 
 void
 cipher_context_release(cipher_ctx_t *ctx)
@@ -439,95 +504,75 @@ cipher_context_release(cipher_ctx_t *ctx)
 #endif
 }
 
+/* UDP */
 int
 ss_encrypt_all(buffer_t *plain, int method, size_t capacity)
 {
     cipher_ctx_t evp;
     cipher_context_init(&evp, method, 1);
-
-    size_t iv_len = enc_iv_len;
-    int err       = 1;
+    cipher_evp_t *ctx = (&evp)->evp;
+    size_t nonce_len  = enc_nonce_len;
+    size_t tag_len    = enc_tag_len;
+    int err           = 1;
 
     static buffer_t tmp = { 0, 0, 0, NULL };
-    brealloc(&tmp, iv_len + plain->len, capacity);
+    brealloc(&tmp, nonce_len + tag_len + plain->len, capacity);
     buffer_t *cipher = &tmp;
     cipher->len = plain->len;
 
-    uint8_t iv[MAX_IV_LENGTH];
+    // generate nonce
+    uint8_t nonce[MAX_NONCE_LENGTH];
+    rand_bytes(nonce, nonce_len);
 
-    rand_bytes(iv, iv_len);
-    cipher_context_set_iv(&evp, iv, iv_len, 1);
-    memcpy(cipher->data, iv, iv_len);
+    // cipher_context_set_iv(&evp, iv, iv_len, 1);
+
+    /* copy nonce to first pos */
+    memcpy(cipher->data, nonce, nonce_len);
 
     if (method >= CHACHA20POLY1305) {
-        /* do what we want directly */
+        err = sodium_aead_encrypt((unsigned char *)(cipher->data + nonce_len + tag_len),
+                                  (unsigned char *)(cipher->data + nonce_len),
+                                  (unsigned long long *)(&tag_len),
+                                  (const unsigned char *)(plain->data),
+                                  (unsigned long long)(plain->len),
+                                  NULL,
+                                  0,
+                                  NULL,
+                                  (const unsigned char *)nonce,
+                                  (const unsigned char *)enc_key,
+                                  method);
+        if (!err) {
+            bfree(plain);
+            cipher_context_release(&evp);
+            return -1;
+        }
     } else {
-        err = cipher_context_update(&evp, (uint8_t *)(cipher->data + iv_len),
-                                    &cipher->len, (const uint8_t *)plain->data,
-                                    plain->len);
-    }
-
-    if (!err) {
-        bfree(plain);
-        cipher_context_release(&evp);
-        return -1;
+        err = mbedtls_cipher_auth_encrypt(ctx,
+                                          (const unsigned char *)nonce, nonce_len,
+                                          NULL, 0, // zero ad
+                                          (const unsigned char *)plain->data, plain->len,
+                                          (unsigned char *)(cipher->data + nonce_len + tag_len), &cipher->len,
+                                          (unsigned char *)(cipher->data + nonce_len), tag_len);
+//         err = cipher_context_update(&evp, (uint8_t *)(cipher->data + iv_len),
+//                                     &cipher->len, (const uint8_t *)plain->data,
+//                                     plain->len);
+        if (!err) {
+            bfree(plain);
+            cipher_context_release(&evp);
+            return -1;
+        }
     }
 
 #ifdef DEBUG
     dump("PLAIN", plain->data, plain->len);
-    dump("CIPHER", cipher->data + iv_len, cipher->len);
+    dump("CIPHER", cipher->data + nonce_len, cipher->len);
 #endif
 
     cipher_context_release(&evp);
 
-    brealloc(plain, iv_len + cipher->len, capacity);
-    memcpy(plain->data, cipher->data, iv_len + cipher->len);
-    plain->len = iv_len + cipher->len;
-
-    return 0;
-}
-
-int
-ss_encrypt(buffer_t *plain, enc_ctx_t *ctx, size_t capacity)
-{
-    static buffer_t tmp = { 0, 0, 0, NULL };
-
-    int err       = 1;
-    size_t iv_len = 0;
-    if (!ctx->init) {
-        iv_len = enc_iv_len;
-    }
-
-    brealloc(&tmp, iv_len + plain->len, capacity);
-    buffer_t *cipher = &tmp;
-    cipher->len = plain->len;
-
-    if (!ctx->init) {
-        cipher_context_set_iv(&ctx->evp, ctx->evp.iv, iv_len, 1);
-        memcpy(cipher->data, ctx->evp.iv, iv_len);
-        ctx->init = 1;
-    }
-    if (enc_method >= CHACHA20POLY1305) {
-        /* do what we want directly */
-    } else {
-        err =
-            cipher_context_update(&ctx->evp,
-                                  (uint8_t *)(cipher->data + iv_len),
-                                  &cipher->len, (const uint8_t *)plain->data,
-                                  plain->len);
-    }
-    if (!err) {
-        return -1;
-    }
-
-#ifdef DEBUG
-    dump("PLAIN", plain->data, plain->len);
-    dump("CIPHER", cipher->data + iv_len, cipher->len);
-#endif
-
-    brealloc(plain, iv_len + cipher->len, capacity);
-    memcpy(plain->data, cipher->data, iv_len + cipher->len);
-    plain->len = iv_len + cipher->len;
+    brealloc(plain, nonce_len + cipher->len, capacity);
+    memcpy(plain->data, cipher->data, nonce_len + cipher->len);
+    plain->len = nonce_len + cipher->len;
 
     return 0;
 }
@@ -535,42 +580,67 @@ ss_encrypt(buffer_t *plain, enc_ctx_t *ctx, size_t capacity)
 int
 ss_decrypt_all(buffer_t *cipher, int method, size_t capacity)
 {
-    size_t iv_len = enc_iv_len;
-    int ret       = 1;
+    size_t nonce_len = enc_nonce_len;
+    size_t tag_len   = enc_tag_len;
+    int ret          = 1;
 
-    if (cipher->len <= iv_len) {
+    if (cipher->len <= nonce_len + tag_len) {
         return -1;
     }
 
     cipher_ctx_t evp;
     cipher_context_init(&evp, method, 0);
+    cipher_evp_t *ctx = (&evp)->evp;
 
     static buffer_t tmp = { 0, 0, 0, NULL };
     brealloc(&tmp, cipher->len, capacity);
     buffer_t *plain = &tmp;
-    plain->len = cipher->len - iv_len;
+    plain->len = cipher->len - nonce_len - tag_len;
 
-    uint8_t iv[MAX_IV_LENGTH];
-    memcpy(iv, cipher->data, iv_len);
-    cipher_context_set_iv(&evp, iv, iv_len, 0);
+    /* get nonce */
+    uint8_t nonce[MAX_NONCE_LENGTH];
+    memcpy(nonce, cipher->data, nonce_len);
+
+//     cipher_context_set_iv(&evp, iv, iv_len, 0);
 
     if (enc_method >= CHACHA20POLY1305) {
-        /* do what we want directly */
+        // check payload len
+        ret = sodium_aead_decrypt((unsigned char *)plain->data,
+                                  NULL,
+                                  (const unsigned char *)(cipher->data + nonce_len + tag_len),
+                                  cipher->len - nonce_len - tag_len,
+                                  (const unsigned char *)(cipher->data + nonce_len),
+                                  NULL,
+                                  0,
+                                  (const unsigned char *)(cipher->data),
+                                  (const unsigned char *)enc_key,
+                                  method);
+        if (!ret) {
+            bfree(cipher);
+            cipher_context_release(&evp);
+            return -1;
+        }
     } else {
-        ret = cipher_context_update(&evp, (uint8_t *)plain->data, &plain->len,
-                                    (const uint8_t *)(cipher->data + iv_len),
-                                    cipher->len - iv_len);
-    }
-
-    if (!ret) {
-        bfree(cipher);
-        cipher_context_release(&evp);
-        return -1;
+        ret = mbedtls_cipher_auth_decrypt(ctx,
+                                          (const unsigned char *)(cipher->data), nonce_len,
+                                          NULL, 0,
+                                          (const unsigned char *)(cipher->data + nonce_len + tag_len),
+                                          cipher->len - nonce_len - tag_len,
+                                          (unsigned char *)plain->data, &plain->len,
+                                          (const unsigned char *)(cipher->data + nonce_len), tag_len);
+//         ret = cipher_context_update(&evp, (uint8_t *)plain->data, &plain->len,
+//                                     (const uint8_t *)(cipher->data + iv_len),
+//                                     cipher->len - iv_len);
+        if (!ret) {
+            bfree(cipher);
+            cipher_context_release(&evp);
+            return -1;
+        }
     }
 
 #ifdef DEBUG
     dump("PLAIN", plain->data, plain->len);
-    dump("CIPHER", cipher->data + iv_len, cipher->len - iv_len);
+    dump("CIPHER", cipher->data + nonce_len, cipher->len - nonce_len);
 #endif
 
     cipher_context_release(&evp);
@@ -582,41 +652,84 @@ ss_decrypt_all(buffer_t *cipher, int method, size_t capacity)
     return 0;
 }
 
+/* TCP */
+int
+ss_encrypt(buffer_t *plain, enc_ctx_t *ctx, size_t capacity)
+{
+    static buffer_t tmp = { 0, 0, 0, NULL };
+
+    int err          = 1;
+    size_t nonce_len = 0;
+    if (!ctx->init) {
+        nonce_len = enc_nonce_len;
+    }
+
+    brealloc(&tmp, nonce_len + enc_tag_len + plain->len, capacity);
+    buffer_t *cipher = &tmp;
+    cipher->len = plain->len;
+
+    if (!ctx->init) {
+        // cipher_context_set_iv(&ctx->evp, ctx->evp.iv, iv_len, 1);
+        memcpy(cipher->data, ctx->evp.nonce, nonce_len);
+        ctx->init = 1;
+    }
+    if (enc_method >= CHACHA20POLY1305) {
+        // do what we want directly
+    } else {
+//         err =
+//             cipher_context_update(&ctx->evp,
+//                                   (uint8_t *)(cipher->data + nonce_len),
+//                                   &cipher->len, (const uint8_t *)plain->data,
+//                                   plain->len);
+    }
+    if (!err) {
+        return -1;
+    }
+
+#ifdef DEBUG
+    dump("PLAIN", plain->data, plain->len);
+    dump("CIPHER", cipher->data + nonce_len, cipher->len);
+#endif
+
+    brealloc(plain, nonce_len + cipher->len, capacity);
+    memcpy(plain->data, cipher->data, nonce_len + cipher->len);
+    plain->len = nonce_len + cipher->len;
+
+    return 0;
+}
+
 int
 ss_decrypt(buffer_t *cipher, enc_ctx_t *ctx, size_t capacity)
 {
     static buffer_t tmp = { 0, 0, 0, NULL };
 
-    size_t iv_len = 0;
-    int err       = 1;
+    size_t nonce_len = enc_nonce_len;
+    // size_t tag_len   = enc_tag_len;
+    int err = 1;
 
     brealloc(&tmp, cipher->len, capacity);
     buffer_t *plain = &tmp;
     plain->len = cipher->len;
 
-    if (!ctx->init) {
-        uint8_t iv[MAX_IV_LENGTH];
-        iv_len      = enc_iv_len;
-        plain->len -= iv_len;
+    // get nonce
+    uint8_t nonce[MAX_NONCE_LENGTH];
+    plain->len -= nonce_len;
+    memcpy(nonce, cipher->data, nonce_len);
+    // cipher_context_set_iv(&ctx->evp, iv, iv_len, 0);
 
-        memcpy(iv, cipher->data, iv_len);
-        cipher_context_set_iv(&ctx->evp, iv, iv_len, 0);
-        ctx->init = 1;
-
-        if (cache_key_exist(iv_cache, (char *)iv, iv_len)) {
-            bfree(cipher);
-            return -1;
-        } else {
-            cache_insert(iv_cache, (char *)iv, iv_len, NULL);
-        }
+    if (cache_key_exist(nonce_cache, (char *)nonce, nonce_len)) {
+        bfree(cipher);
+        return -1;
+    } else {
+        cache_insert(nonce_cache, (char *)nonce, nonce_len, NULL);
     }
 
     if (enc_method >= CHACHA20POLY1305) {
-        /* do what we want directly */
+        // do what we want directly
     } else {
-        err = cipher_context_update(&ctx->evp, (uint8_t *)plain->data, &plain->len,
-                                    (const uint8_t *)(cipher->data + iv_len),
-                                    cipher->len - iv_len);
+//         err = cipher_context_update(&ctx->evp, (uint8_t *)plain->data, &plain->len,
+//                                     (const uint8_t *)(cipher->data + nonce_len),
+//                                     cipher->len - nonce_len);
     }
 
     if (!err) {
@@ -626,7 +739,7 @@ ss_decrypt(buffer_t *cipher, enc_ctx_t *ctx, size_t capacity)
 
 #ifdef DEBUG
     dump("PLAIN", plain->data, plain->len);
-    dump("CIPHER", cipher->data + iv_len, cipher->len - iv_len);
+    dump("CIPHER", cipher->data + nonce_len, cipher->len - nonce_len);
 #endif
 
     brealloc(cipher, plain->len, capacity);
@@ -643,7 +756,7 @@ enc_ctx_init(int method, enc_ctx_t *ctx, int enc)
     cipher_context_init(&ctx->evp, method, enc);
 
     if (enc) {
-        rand_bytes(ctx->evp.iv, enc_iv_len);
+        rand_bytes(ctx->evp.nonce, enc_nonce_len);
     }
 }
 
@@ -674,7 +787,7 @@ enc_key_init(int method, const char *pass)
         cipher.info             = &cipher_info;
         cipher.info->base       = NULL;
         cipher.info->key_bitlen = supported_ciphers_key_size[method] * 8;
-        cipher.info->iv_size    = supported_ciphers_iv_size[method];
+        cipher.info->iv_size    = supported_ciphers_nonce_size[method];
 #endif
     } else {
         cipher.info = (cipher_kt_t *)get_cipher_type(method);
@@ -694,9 +807,9 @@ enc_key_init(int method, const char *pass)
         FATAL("Cannot generate key and IV");
     }
 
-    enc_iv_len  = cipher_iv_size(&cipher);
-    enc_tag_len = supported_ciphers_tag_size[method];
-    enc_method  = method;
+    enc_nonce_len = cipher_nonce_size(&cipher);
+    enc_tag_len   = supported_ciphers_tag_size[method];
+    enc_method    = method;
 }
 
 /*
@@ -724,8 +837,8 @@ enc_init(const char *pass, const char *method)
         FATAL("Failed to initialize sodium");
     }
 
-    // Initialize IV cache
-    cache_create(&iv_cache, 1024, NULL);
+    // Initialize NONCE cache
+    cache_create(&nonce_cache, 1024, NULL);
 
     enc_key_init(m, pass);
     return m;

@@ -20,9 +20,6 @@
  * <http://www.gnu.org/licenses/>.
  */
 
-/* TODO: handle EINTR for several syscalls, we should put the call in
- *       a while loop
- */
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
@@ -226,27 +223,27 @@ free_connections(struct ev_loop *loop)
 }
 
 /*
-static size_t
-parse_header_len(const char atyp, const char *data, size_t offset)
-{
-    size_t len = 0;
-    if ((atyp & ADDRTYPE_MASK) == 1) {
-        // IP V4
-        len += sizeof(struct in_addr);
-    } else if ((atyp & ADDRTYPE_MASK) == 3) {
-        // Domain name
-        uint8_t name_len = *(uint8_t *)(data + offset);
-        len += name_len + 1;
-    } else if ((atyp & ADDRTYPE_MASK) == 4) {
-        // IP V6
-        len += sizeof(struct in6_addr);
-    } else {
-        return 0;
-    }
-    len += 2;
-    return len;
-}
-*/
+ * static size_t
+ * parse_header_len(const char atyp, const char *data, size_t offset)
+ * {
+ *  size_t len = 0;
+ *  if ((atyp & ADDRTYPE_MASK) == 1) {
+ *      // IP V4
+ *      len += sizeof(struct in_addr);
+ *  } else if ((atyp & ADDRTYPE_MASK) == 3) {
+ *      // Domain name
+ *      uint8_t name_len = *(uint8_t *)(data + offset);
+ *      len += name_len + 1;
+ *  } else if ((atyp & ADDRTYPE_MASK) == 4) {
+ *      // IP V6
+ *      len += sizeof(struct in6_addr);
+ *  } else {
+ *      return 0;
+ *  }
+ *  len += 2;
+ *  return len;
+ * }
+ */
 
 static int
 is_header_complete(const buffer_t *buf)
@@ -673,7 +670,7 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
     if (server->stage == STAGE_INIT) {
         buf->len += r;
 
-        if (buf->len <= enc_get_iv_len() + 1) {
+        if (buf->len <= enc_get_nonce_len() + 1) {
             // wait for more
             server->frag++;
             return;
