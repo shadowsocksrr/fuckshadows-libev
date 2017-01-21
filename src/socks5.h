@@ -23,12 +23,18 @@
 #ifndef _SOCKS5_H
 #define _SOCKS5_H
 
-#define SVERSION 0x05
-#define CONNECT 0x01
-#define IPV4 0x01
-#define DOMAIN 0x03
-#define IPV6 0x04
+#define SOCKS_VER5 0x05
+#define SOCKS_RSV 0x00
+
+#define REP_SUCCEED 0x00
+
+#define CMD_CONNECT 0x01
+#define CMD_UDP_ASSOCIATE 0x03
 #define CMD_NOT_SUPPORTED 0x07
+
+#define ADDR_IPV4 0x01
+#define ADDR_DOMAIN 0x03
+#define ADDR_IPV6 0x04
 
 struct method_select_request {
     char ver;

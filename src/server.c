@@ -104,7 +104,7 @@ static void close_and_free_server(EV_P_ server_t *server);
 static void server_resolve_cb(struct sockaddr *addr, void *data);
 static void query_free_cb(void *data);
 
-/* static size_t parse_header_len(const char atyp, const char *data, size_t offset); */
+//static size_t parse_header_len(const char atyp, const char *data, size_t offset);
 static int is_header_complete(const buffer_t *buf);
 
 int verbose = 0;
@@ -222,28 +222,26 @@ free_connections(struct ev_loop *loop)
     }
 }
 
-/*
- * static size_t
- * parse_header_len(const char atyp, const char *data, size_t offset)
- * {
- *  size_t len = 0;
- *  if ((atyp & ADDRTYPE_MASK) == 1) {
- *      // IP V4
- *      len += sizeof(struct in_addr);
- *  } else if ((atyp & ADDRTYPE_MASK) == 3) {
- *      // Domain name
- *      uint8_t name_len = *(uint8_t *)(data + offset);
- *      len += name_len + 1;
- *  } else if ((atyp & ADDRTYPE_MASK) == 4) {
- *      // IP V6
- *      len += sizeof(struct in6_addr);
- *  } else {
- *      return 0;
- *  }
- *  len += 2;
- *  return len;
- * }
- */
+
+//static size_t
+//parse_header_len(const char atyp, const char *data, size_t offset)
+//{
+// size_t len = 0;
+// if ((atyp & ADDRTYPE_MASK) == ADDR_IPV4) {
+//     len += sizeof(struct in_addr);
+// } else if ((atyp & ADDRTYPE_MASK) == ADDR_DOMAIN) {
+//     uint8_t name_len = *(uint8_t *)(data + offset);
+//     len += name_len + 1;
+// } else if ((atyp & ADDRTYPE_MASK) == ADDR_IPV6) {
+//     len += sizeof(struct in6_addr);
+// } else {
+//     return 0;
+// }
+// // port
+// len += 2;
+// return len;
+//}
+//
 
 static int
 is_header_complete(const buffer_t *buf)
@@ -256,18 +254,15 @@ is_header_complete(const buffer_t *buf)
     // 1 byte for atyp
     header_len++;
 
-    if ((atyp & ADDRTYPE_MASK) == 1) {
-        // IP V4
+    if ((atyp & ADDRTYPE_MASK) == ADDR_IPV4) {
         header_len += sizeof(struct in_addr);
-    } else if ((atyp & ADDRTYPE_MASK) == 3) {
-        // Domain name
+    } else if ((atyp & ADDRTYPE_MASK) == ADDR_DOMAIN) {
         // domain len + len of domain
         if (buf_len < header_len + 1)
             return 0;
         uint8_t name_len = *(uint8_t *)(buf->data + header_len);
         header_len += name_len + 1;
-    } else if ((atyp & ADDRTYPE_MASK) == 4) {
-        // IP V6
+    } else if ((atyp & ADDRTYPE_MASK) == ADDR_IPV6) {
         header_len += sizeof(struct in6_addr);
     } else {
         return -1;
@@ -775,8 +770,7 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
         memset(&storage, 0, sizeof(struct sockaddr_storage));
 
         // get remote addr and port
-        if ((atyp & ADDRTYPE_MASK) == 1) {
-            // IP V4
+        if ((atyp & ADDRTYPE_MASK) == ADDR_IPV4) {
             struct sockaddr_in *addr = (struct sockaddr_in *)&storage;
             size_t in_addr_len       = sizeof(struct in_addr);
             addr->sin_family = AF_INET;
@@ -797,8 +791,7 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
             info.ai_protocol = IPPROTO_TCP;
             info.ai_addrlen  = sizeof(struct sockaddr_in);
             info.ai_addr     = (struct sockaddr *)addr;
-        } else if ((atyp & ADDRTYPE_MASK) == 3) {
-            // Domain name
+        } else if ((atyp & ADDRTYPE_MASK) == ADDR_DOMAIN) {
             uint8_t name_len = *(uint8_t *)(server->buf->data + offset);
             if (name_len + 4 <= server->buf->len) {
                 memcpy(host, server->buf->data + offset + 1, name_len);
@@ -845,8 +838,7 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
                 }
                 need_query = 1;
             }
-        } else if ((atyp & ADDRTYPE_MASK) == 4) {
-            // IP V6
+        } else if ((atyp & ADDRTYPE_MASK) == ADDR_IPV6) {
             struct sockaddr_in6 *addr = (struct sockaddr_in6 *)&storage;
             size_t in6_addr_len       = sizeof(struct in6_addr);
             addr->sin6_family = AF_INET6;
@@ -890,7 +882,7 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
         }
 
         if (verbose) {
-            if ((atyp & ADDRTYPE_MASK) == 4)
+            if ((atyp & ADDRTYPE_MASK) == ADDR_IPV6)
                 LOGI("connect to [%s]:%d", host, ntohs(port));
             else
                 LOGI("connect to %s:%d", host, ntohs(port));

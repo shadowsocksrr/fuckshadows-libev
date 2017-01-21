@@ -448,7 +448,7 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
             return;
         } else if (server->stage == STAGE_INIT) {
             struct method_select_response response;
-            response.ver    = SVERSION;
+            response.ver    = SOCKS_VER5;
             response.method = 0;
             char *send_buf = (char *)&response;
             send(server->fd, send_buf, sizeof(response), 0);
@@ -471,7 +471,7 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
 
             int udp_assc = 0;
 
-            if (request->cmd == 3) {
+            if (request->cmd == CMD_UDP_ASSOCIATE) {
                 udp_assc = 1;
                 socklen_t addr_len = sizeof(sock_addr);
                 getsockname(server->fd, (struct sockaddr *)&sock_addr,
@@ -479,13 +479,13 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
                 if (verbose) {
                     LOGI("udp assc request accepted");
                 }
-            } else if (request->cmd != 1) {
+            } else if (request->cmd != CMD_CONNECT) {
                 LOGE("unsupported cmd: %d", request->cmd);
                 struct socks5_response response;
-                response.ver  = SVERSION;
+                response.ver  = SOCKS_VER5;
                 response.rep  = CMD_NOT_SUPPORTED;
-                response.rsv  = 0;
-                response.atyp = 1;
+                response.rsv  = SOCKS_RSV;
+                response.atyp = ADDR_IPV4;
                 char *send_buf = (char *)&response;
                 send(server->fd, send_buf, 4, 0);
                 close_and_free_remote(EV_A_ remote);
@@ -496,10 +496,10 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
             // Fake reply
             if (server->stage == STAGE_HANDSHAKE) {
                 struct socks5_response response;
-                response.ver  = SVERSION;
-                response.rep  = 0;
-                response.rsv  = 0;
-                response.atyp = 1;
+                response.ver  = SOCKS_VER5;
+                response.rep  = REP_SUCCEED;
+                response.rsv  = SOCKS_RSV;
+                response.atyp = ADDR_IPV4;
 
                 buffer_t resp_to_send;
                 buffer_t *resp_buf = &resp_to_send;
@@ -542,7 +542,7 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
             int atyp = request->atyp;
 
             // get remote addr and port
-            if (atyp == 1) {
+            if (atyp == ADDR_IPV4) {
                 // IP V4
                 size_t in_addr_len = sizeof(struct in_addr);
                 memcpy(abuf->data + abuf->len, buf->data + 4, in_addr_len + 2);
@@ -554,7 +554,7 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
                              ip, INET_ADDRSTRLEN);
                     sprintf(port, "%d", p);
                 }
-            } else if (atyp == 3) {
+            } else if (atyp == ADDR_DOMAIN) {
                 // Domain name
                 uint8_t name_len = *(uint8_t *)(buf->data + 4);
                 abuf->data[abuf->len++] = name_len;
@@ -568,7 +568,7 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
                     host[name_len] = '\0';
                     sprintf(port, "%d", p);
                 }
-            } else if (atyp == 4) {
+            } else if (atyp == ADDR_IPV6) {
                 // IP V6
                 size_t in6_addr_len = sizeof(struct in6_addr);
                 memcpy(abuf->data + abuf->len, buf->data + 4, in6_addr_len + 2);
@@ -591,7 +591,7 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
             size_t abuf_len  = abuf->len;
             int sni_detected = 0;
 
-            if (atyp == 1 || atyp == 4) {
+            if (atyp == ADDR_IPV4 || atyp == ADDR_IPV6) {
                 char *hostname;
                 uint16_t p = ntohs(*(uint16_t *)(abuf->data + abuf->len - 2));
                 int ret    = 0;
@@ -635,11 +635,11 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
             }
 
             if (verbose) {
-                if (sni_detected || atyp == 3)
+                if (sni_detected || atyp == ADDR_DOMAIN)
                     LOGI("connect to %s:%s", host, port);
-                else if (atyp == 1)
+                else if (atyp == ADDR_IPV4)
                     LOGI("connect to %s:%s", ip, port);
-                else if (atyp == 4)
+                else if (atyp == ADDR_IPV6)
                     LOGI("connect to [%s]:%s", ip, port);
             }
 
@@ -667,11 +667,11 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
 
                 if (bypass) {
                     if (verbose) {
-                        if (sni_detected || atyp == 3)
+                        if (sni_detected || atyp == ADDR_DOMAIN)
                             LOGI("bypass %s:%s", host, port);
-                        else if (atyp == 1)
+                        else if (atyp == ADDR_IPV4)
                             LOGI("bypass %s:%s", ip, port);
-                        else if (atyp == 4)
+                        else if (atyp == ADDR_IPV6)
                             LOGI("bypass [%s]:%s", ip, port);
                     }
                     struct sockaddr_storage storage;
@@ -1010,15 +1010,10 @@ new_server(int fd, int method)
     server->recv_ctx->server    = server;
     server->send_ctx->server    = server;
 
-    if (method) {
         server->e_ctx = ss_malloc(sizeof(struct enc_ctx));
         server->d_ctx = ss_malloc(sizeof(struct enc_ctx));
         enc_ctx_init(method, server->e_ctx, 1);
         enc_ctx_init(method, server->d_ctx, 0);
-    } else {
-        server->e_ctx = NULL;
-        server->d_ctx = NULL;
-    }
 
     ev_io_init(&server->recv_ctx->io, server_recv_cb, fd, EV_READ);
     ev_io_init(&server->send_ctx->io, server_send_cb, fd, EV_WRITE);

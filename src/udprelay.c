@@ -225,8 +225,7 @@ parse_udprealy_header(const char *buf, const size_t buf_len,
     int offset         = 1;
 
     // get remote addr and port
-    if ((atyp & ADDRTYPE_MASK) == 1) {
-        // IP V4
+    if ((atyp & ADDRTYPE_MASK) == ADDR_IPV4) {
         size_t in_addr_len = sizeof(struct in_addr);
         if (buf_len >= in_addr_len + 3) {
             if (storage != NULL) {
@@ -241,8 +240,7 @@ parse_udprealy_header(const char *buf, const size_t buf_len,
             }
             offset += in_addr_len;
         }
-    } else if ((atyp & ADDRTYPE_MASK) == 3) {
-        // Domain name
+    } else if ((atyp & ADDRTYPE_MASK) == ADDR_DOMAIN) {
         uint8_t name_len = *(uint8_t *)(buf + offset);
         if (name_len + 4 <= buf_len) {
             if (storage != NULL) {
@@ -268,8 +266,7 @@ parse_udprealy_header(const char *buf, const size_t buf_len,
             }
             offset += 1 + name_len;
         }
-    } else if ((atyp & ADDRTYPE_MASK) == 4) {
-        // IP V6
+    } else if ((atyp & ADDRTYPE_MASK) == ADDR_IPV6) {
         size_t in6_addr_len = sizeof(struct in6_addr);
         if (buf_len >= in6_addr_len + 3) {
             if (storage != NULL) {

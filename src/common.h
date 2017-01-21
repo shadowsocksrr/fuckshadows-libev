@@ -22,6 +22,8 @@
 #ifndef _COMMON_H
 #define _COMMON_H
 
+#include "socks5.h"
+
 #define DEFAULT_CONF_PATH "/etc/fuckshadows-libev/config.json"
 
 #ifndef SOL_TCP
@@ -54,5 +56,32 @@ int send_traffic_stat(uint64_t tx, uint64_t rx);
 #define STAGE_PARSE      2  /* Parse the header                 */
 #define STAGE_RESOLVE    4  /* Resolve the hostname             */
 #define STAGE_STREAM     5  /* Stream between client and server */
+
+/*
+ * for each opening port, we have a TCP Relay
+ *
+ * for each connection, we have a TCP Relay Handler to handle the connection
+ *
+ * for each handler, we have 2 sockets:
+ *  local:   connected to the client
+ *  remote:  connected to remote server
+ *
+ * for each handler, it could be at one of several stages:
+ *
+ * as sslocal:
+ * stage 0 auth METHOD received from local, reply with selection message
+ * stage 1 addr received from local, query DNS for remote
+ * stage 2 UDP assoc
+ * stage 3 DNS resolved, connect to remote
+ * stage 4 still connecting, more data from local received
+ * stage 5 remote connected, piping local and remote
+ *
+ * as ssserver:
+ * stage 0 just jump to stage 1
+ * stage 1 addr received from local, query DNS for remote
+ * stage 3 DNS resolved, connect to remote
+ * stage 4 still connecting, more data from local received
+ * stage 5 remote connected, piping local and remote
+ */
 
 #endif // _COMMON_H
