@@ -1,7 +1,7 @@
 /*
  * server.c - Provide shadowsocks service
  *
- * Copyright (C) 2013 - 2016, Max Lv <max.c.lv@gmail.com>
+ * Copyright (C) 2013 - 2017, Max Lv <max.c.lv@gmail.com>
  *
  * This file is part of the shadowsocks-libev.
  *
@@ -39,7 +39,6 @@
 #include <limits.h>
 #include <dirent.h>
 
-#ifndef __MINGW32__
 #include <netdb.h>
 #include <errno.h>
 #include <arpa/inet.h>
@@ -49,13 +48,7 @@
 #include <sys/un.h>
 #include <sys/socket.h>
 #include <pwd.h>
-#endif
-
 #include <libcork/core.h>
-
-#ifdef __MINGW32__
-#include "win32.h"
-#endif
 
 #if defined(HAVE_SYS_IOCTL_H) && defined(HAVE_NET_IF_H) && defined(__linux__)
 #include <net/if.h>
@@ -73,14 +66,13 @@
 #endif
 
 int verbose          = 0;
-char *executable     = "fs-server";
+char *executable     = "ss-server";
 char *working_dir    = NULL;
 int working_dir_size = 0;
 
 static struct cork_hash_table *server_table;
 static struct cork_hash_table *sock_table;
 
-#ifndef __MINGW32__
 static int
 setnonblocking(int fd)
 {
@@ -90,8 +82,6 @@ setnonblocking(int fd)
     }
     return fcntl(fd, F_SETFL, flags | O_NONBLOCK);
 }
-
-#endif
 
 static void
 build_config(char *prefix, struct server *server)
@@ -195,7 +185,7 @@ get_data(char *buf, int len)
     char *data;
     int pos = 0;
 
-    while (buf[pos] != '{' && pos < len)
+    while (pos < len && buf[pos] != '{')
         pos++;
     if (pos == len) {
         return NULL;
@@ -211,14 +201,14 @@ get_action(char *buf, int len)
     char *action;
     int pos = 0;
 
-    while (isspace((unsigned char)buf[pos]) && pos < len)
+    while (pos < len && isspace((unsigned char)buf[pos]))
         pos++;
     if (pos == len) {
         return NULL;
     }
     action = buf + pos;
 
-    while ((!isspace((unsigned char)buf[pos]) && buf[pos] != ':') && pos < len)
+    while (pos < len && (!isspace((unsigned char)buf[pos]) && buf[pos] != ':'))
         pos++;
     buf[pos] = '\0';
 
@@ -892,13 +882,13 @@ main(int argc, char **argv)
 
     int option_index                    = 0;
     static struct option long_options[] = {
-        { "fast-open",       no_argument,       0, 0 },
-        { "acl",             required_argument, 0, 0 },
-        { "manager-address", required_argument, 0, 0 },
-        { "executable",      required_argument, 0, 0 },
-        { "mtu",             required_argument, 0, 0 },
-        { "help",            no_argument,       0, 0 },
-        {                 0,                 0, 0, 0 }
+        { "fast-open",       no_argument,                         0, 0 },
+        { "acl",             required_argument,                   0, 0 },
+        { "manager-address", required_argument,                   0, 0 },
+        { "executable",      required_argument,                   0, 0 },
+        { "mtu",             required_argument,                   0, 0 },
+        { "help",            no_argument,                         0, 0 },
+        {                 0,                             0,       0, 0 }
     };
 
     opterr = 0;
@@ -1061,14 +1051,10 @@ main(int argc, char **argv)
 #endif
     }
 
-#ifdef __MINGW32__
-    winsock_init();
-#else
     // ignore SIGPIPE
     signal(SIGPIPE, SIG_IGN);
     signal(SIGCHLD, SIG_IGN);
     signal(SIGABRT, SIG_IGN);
-#endif
 
     struct ev_signal sigint_watcher;
     struct ev_signal sigterm_watcher;
@@ -1108,11 +1094,9 @@ main(int argc, char **argv)
         FATAL("failed to switch user");
     }
 
-#ifndef __MINGW32__
     if (geteuid() == 0) {
         LOGI("running from root user");
     }
-#endif
 
     struct passwd *pw   = getpwuid(getuid());
     const char *homedir = pw->pw_dir;
@@ -1225,10 +1209,6 @@ main(int argc, char **argv)
         sock_lock_t *sock_lock = (sock_lock_t *)entry->value;
         release_sock_lock(sock_lock);
     }
-
-#ifdef __MINGW32__
-    winsock_cleanup();
-#endif
 
     ev_signal_stop(EV_DEFAULT, &sigint_watcher);
     ev_signal_stop(EV_DEFAULT, &sigterm_watcher);

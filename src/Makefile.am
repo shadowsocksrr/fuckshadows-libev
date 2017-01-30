@@ -30,36 +30,40 @@ sni_src = http.c \
           tls.c \
           rule.c
 
+crypto_src = crypto.c \
+             aead.c \
+             stream.c
+
 fs_local_SOURCES = utils.c \
                    jconf.c \
                    json.c \
-                   encrypt.c \
                    udprelay.c \
                    cache.c \
                    acl.c \
                    netutils.c \
                    local.c \
+                   $(crypto_src) \
                    $(sni_src)
 
 fs_tunnel_SOURCES = utils.c \
                     jconf.c \
                     json.c \
-                    encrypt.c \
                     udprelay.c \
                     cache.c \
                     netutils.c \
-                    tunnel.c
+                    tunnel.c \
+                    $(crypto_src)
 
 fs_server_SOURCES = utils.c \
                     netutils.c \
                     jconf.c \
                     json.c \
-                    encrypt.c \
                     udprelay.c \
                     cache.c \
                     acl.c \
                     resolv.c \
                     server.c \
+                    $(crypto_src) \
                     $(sni_src)
 
 fs_manager_SOURCES = utils.c \
@@ -99,11 +103,11 @@ bin_PROGRAMS += fs-redir
 fs_redir_SOURCES = utils.c \
                    jconf.c \
                    json.c \
-                   encrypt.c \
                    netutils.c \
                    cache.c \
                    udprelay.c \
                    redir.c \
+                   $(crypto_src) \
                    $(sni_src)
 
 fs_redir_CFLAGS = $(AM_CFLAGS) -DMODULE_REDIR

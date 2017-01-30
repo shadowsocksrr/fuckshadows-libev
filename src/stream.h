@@ -1,5 +1,5 @@
 /*
- * acl.h - Define the ACL interface
+ * encrypt.h - Define the enryptor's interface
  *
  * Copyright (C) 2013 - 2017, Max Lv <max.c.lv@gmail.com>
  *
@@ -20,34 +20,33 @@
  * <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _ACL_H
-#define _ACL_H
+#ifndef _STREAM_H
+#define _STREAM_H
 
-#define BLACK_LIST 0
-#define WHITE_LIST 1
+#include <sys/socket.h>
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <stdint.h>
+#ifdef HAVE_STDINT_H
+#include <stdint.h>
+#elif HAVE_INTTYPES_H
+#include <inttypes.h>
+#endif
 
-#define MAX_TRIES  64
-#define MALICIOUS  8
-#define SUSPICIOUS 4
-#define BAD        2
-#define MALFORMED  1
+#include <sodium.h>
+#define STREAM_CIPHER_NUM          21
 
-int init_acl(const char *path);
-void free_acl(void);
-void clear_block_list(void);
+#include "crypto.h"
 
-int acl_match_host(const char *ip);
-int acl_add_ip(const char *ip);
-int acl_remove_ip(const char *ip);
+int stream_encrypt_all(buffer_t *, cipher_t *, size_t);
+int stream_decrypt_all(buffer_t *, cipher_t *, size_t);
+int stream_encrypt(buffer_t *, cipher_ctx_t *, size_t);
+int stream_decrypt(buffer_t *, cipher_ctx_t *, size_t);
 
-int get_acl_mode(void);
+void stream_ctx_init(cipher_t *, cipher_ctx_t *, int);
+void stream_ctx_release(cipher_ctx_t *);
 
-void init_block_list();
-void free_block_list();
-int check_block_list(char *addr);
-int update_block_list(char *addr, int err_level);
-int remove_from_block_list(char *addr);
+cipher_t *stream_init(const char *pass, const char *method);
 
-int outbound_block_match_host(const char *host);
-
-#endif // _ACL_H
+#endif // _STREAM_H

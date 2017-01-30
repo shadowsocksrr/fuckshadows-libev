@@ -1,7 +1,7 @@
 /*
  * netutils.h - Network utilities
  *
- * Copyright (C) 2013 - 2016, Max Lv <max.c.lv@gmail.com>
+ * Copyright (C) 2013 - 2017, Max Lv <max.c.lv@gmail.com>
  *
  * This file is part of the shadowsocks-libev.
  *
@@ -25,7 +25,7 @@
 
 #if defined(__linux__)
 #include <netdb.h>
-#elif !defined(__MINGW32__)
+#else
 #include <netinet/tcp.h>
 #endif
 

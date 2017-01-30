@@ -1,7 +1,7 @@
 /*
- * socks5.h - Define SOCKS5's header
+ * aead.h - Define the AEAD interface
  *
- * Copyright (C) 2013, clowwindy <clowwindy42@gmail.com>
+ * Copyright (C) 2013 - 2017, Max Lv <max.c.lv@gmail.com>
  *
  * This file is part of the shadowsocks-libev.
  *
@@ -20,39 +20,27 @@
  * <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _SOCKS5_H
-#define _SOCKS5_H
+#ifndef _AEAD_H
+#define _AEAD_H
 
-#define SVERSION 0x05
-#define CONNECT 0x01
-#define IPV4 0x01
-#define DOMAIN 0x03
-#define IPV6 0x04
-#define CMD_NOT_SUPPORTED 0x07
+#include "crypto.h"
 
-struct method_select_request {
-    char ver;
-    char nmethods;
-    char methods[255];
-} __attribute__((packed, aligned(1)));
+// currently, XCHACHA20POLY1305IETF is not released yet
+// XCHACHA20POLY1305 is removed in upstream
+#ifdef FS_HAVE_XCHACHA20IETF
+#define AEAD_CIPHER_NUM              6
+#else
+#define AEAD_CIPHER_NUM              5
+#endif
 
-struct method_select_response {
-    char ver;
-    char method;
-} __attribute__((packed, aligned(1)));
+int aead_encrypt_all(buffer_t *, cipher_t *, size_t);
+int aead_decrypt_all(buffer_t *, cipher_t *, size_t);
 
-struct socks5_request {
-    char ver;
-    char cmd;
-    char rsv;
-    char atyp;
-} __attribute__((packed, aligned(1)));
+int aead_encrypt(buffer_t *, cipher_ctx_t *, size_t);
+int aead_decrypt(buffer_t *, cipher_ctx_t *, size_t);
 
-struct socks5_response {
-    char ver;
-    char rep;
-    char rsv;
-    char atyp;
-} __attribute__((packed, aligned(1)));
+void aead_ctx_init(cipher_t *, cipher_ctx_t *, int);
+void aead_ctx_release(cipher_ctx_t *);
+cipher_t *aead_init(const char *pass, const char *method);
 
-#endif // _SOCKS5_H
+#endif // _AEAD_H

@@ -1,7 +1,7 @@
 /*
  * cache.c - Manage the connection cache for UDPRELAY
  *
- * Copyright (C) 2013 - 2016, Max Lv <max.c.lv@gmail.com>
+ * Copyright (C) 2013 - 2017, Max Lv <max.c.lv@gmail.com>
  *
  * This file is part of the shadowsocks-libev.
  *
@@ -30,10 +30,6 @@
 
 #include "cache.h"
 #include "utils.h"
-
-#ifdef __MINGW32__
-#include "win32.h"
-#endif
 
 /** Creates a new cache object
  *

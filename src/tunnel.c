@@ -1,7 +1,7 @@
 /*
  * tunnel.c - Setup a local port forwarding through remote shadowsocks server
  *
- * Copyright (C) 2013 - 2016, Max Lv <max.c.lv@gmail.com>
+ * Copyright (C) 2013 - 2017, Max Lv <max.c.lv@gmail.com>
  *
  * This file is part of the shadowsocks-libev.
  *
@@ -30,13 +30,11 @@
 #include <unistd.h>
 #include <getopt.h>
 
-#ifndef __MINGW32__
 #include <errno.h>
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <pthread.h>
-#endif
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -46,10 +44,6 @@
 #include <net/if.h>
 #include <sys/ioctl.h>
 #define SET_INTERFACE
-#endif
-
-#ifdef __MINGW32__
-#include "win32.h"
 #endif
 
 #include <libcork/core.h>
@@ -78,7 +72,7 @@ static void remote_recv_cb(EV_P_ ev_io *w, int revents);
 static void remote_send_cb(EV_P_ ev_io *w, int revents);
 
 static remote_t *new_remote(int fd, int timeout);
-static server_t *new_server(int fd, int method);
+static server_t *new_server(int fd);
 
 static void free_remote(remote_t *remote);
 static void close_and_free_remote(EV_P_ remote_t *remote);
@@ -87,11 +81,12 @@ static void close_and_free_server(EV_P_ server_t *server);
 
 #ifdef ANDROID
 int vpn = 0;
-char *prefix;
 #endif
 
 int verbose        = 0;
 int keep_resolving = 1;
+
+static crypto_t *crypto;
 
 static int ipv6first = 0;
 static int mode      = TCP_ONLY;
@@ -99,13 +94,10 @@ static int mode      = TCP_ONLY;
 static int nofile = 0;
 #endif
 
-#ifndef __MINGW32__
 static struct ev_signal sigint_watcher;
 static struct ev_signal sigterm_watcher;
 static struct ev_signal sigchld_watcher;
-#endif
 
-#ifndef __MINGW32__
 static int
 setnonblocking(int fd)
 {
@@ -115,8 +107,6 @@ setnonblocking(int fd)
     }
     return fcntl(fd, F_SETFL, flags | O_NONBLOCK);
 }
-
-#endif
 
 int
 create_and_bind(const char *addr, const char *port)
@@ -206,7 +196,7 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
 
     remote->buf->len = r;
 
-    int err = ss_encrypt(remote->buf, server->e_ctx, BUF_SIZE);
+    int err = crypto->encrypt(remote->buf, server->e_ctx, BUF_SIZE);
 
     if (err) {
         LOGE("invalid password or cipher");
@@ -330,7 +320,7 @@ remote_recv_cb(EV_P_ ev_io *w, int revents)
 
     server->buf->len = r;
 
-    int err = ss_decrypt(server->buf, server->d_ctx, BUF_SIZE);
+    int err = crypto->decrypt(server->buf, server->d_ctx, BUF_SIZE);
 
     if (err) {
         LOGE("invalid password or cipher");
@@ -434,7 +424,7 @@ remote_send_cb(EV_P_ ev_io *w, int revents)
             memcpy(abuf->data + abuf->len, &port, 2);
             abuf->len += 2;
 
-            int err = ss_encrypt(abuf, server->e_ctx, BUF_SIZE);
+            int err = crypto->encrypt(abuf, server->e_ctx, BUF_SIZE);
 
             if (err) {
                 bfree(abuf);
@@ -555,7 +545,7 @@ close_and_free_remote(EV_P_ remote_t *remote)
 }
 
 static server_t *
-new_server(int fd, int method)
+new_server(int fd)
 {
     server_t *server = ss_malloc(sizeof(server_t));
     memset(server, 0, sizeof(server_t));
@@ -572,15 +562,10 @@ new_server(int fd, int method)
     server->send_ctx->server    = server;
     server->send_ctx->connected = 0;
 
-    if (method) {
-        server->e_ctx = ss_malloc(sizeof(struct enc_ctx));
-        server->d_ctx = ss_malloc(sizeof(struct enc_ctx));
-        enc_ctx_init(method, server->e_ctx, 1);
-        enc_ctx_init(method, server->d_ctx, 0);
-    } else {
-        server->e_ctx = NULL;
-        server->d_ctx = NULL;
-    }
+    server->e_ctx = ss_malloc(sizeof(cipher_ctx_t));
+    server->d_ctx = ss_malloc(sizeof(cipher_ctx_t));
+    crypto->ctx_init(crypto->cipher, server->e_ctx, 1);
+    crypto->ctx_init(crypto->cipher, server->d_ctx, 0);
 
     ev_io_init(&server->recv_ctx->io, server_recv_cb, fd, EV_READ);
     ev_io_init(&server->send_ctx->io, server_send_cb, fd, EV_WRITE);
@@ -595,11 +580,11 @@ free_server(server_t *server)
         server->remote->server = NULL;
     }
     if (server->e_ctx != NULL) {
-        cipher_context_release(&server->e_ctx->evp);
+        crypto->ctx_release(server->e_ctx);
         ss_free(server->e_ctx);
     }
     if (server->d_ctx != NULL) {
-        cipher_context_release(&server->d_ctx->evp);
+        crypto->ctx_release(server->d_ctx);
         ss_free(server->d_ctx);
     }
     if (server->buf) {
@@ -686,7 +671,7 @@ accept_cb(EV_P_ ev_io *w, int revents)
     }
 #endif
 
-    server_t *server = new_server(serverfd, listener->method);
+    server_t *server = new_server(serverfd);
     remote_t *remote = new_remote(remotefd, listener->timeout);
     server->destaddr = listener->tunnel_addr;
     server->remote   = remote;
@@ -706,7 +691,6 @@ accept_cb(EV_P_ ev_io *w, int revents)
     ev_timer_start(EV_A_ & remote->send_ctx->watcher);
 }
 
-#ifndef __MINGW32__
 static void
 signal_cb(EV_P_ ev_signal *w, int revents)
 {
@@ -724,8 +708,6 @@ signal_cb(EV_P_ ev_signal *w, int revents)
         }
     }
 }
-
-#endif
 
 int
 main(int argc, char **argv)
@@ -766,7 +748,7 @@ main(int argc, char **argv)
     USE_TTY();
 
 #ifdef ANDROID
-    while ((c = getopt_long(argc, argv, "f:s:p:l:k:t:m:i:c:b:L:a:n:P:huUvV6",
+    while ((c = getopt_long(argc, argv, "f:s:p:l:k:t:m:i:c:b:L:a:n:huUvV6",
                             long_options, &option_index)) != -1) {
 #else
     while ((c = getopt_long(argc, argv, "f:s:p:l:k:t:m:i:c:b:L:a:n:huUv6",
@@ -848,9 +830,6 @@ main(int argc, char **argv)
 #ifdef ANDROID
         case 'V':
             vpn = 1;
-            break;
-        case 'P':
-            prefix = optarg;
             break;
 #endif
         case '?':
@@ -966,9 +945,6 @@ main(int argc, char **argv)
         FATAL("tunnel port is not defined");
     }
 
-#ifdef __MINGW32__
-    winsock_init();
-#else
     // ignore SIGPIPE
     signal(SIGPIPE, SIG_IGN);
     signal(SIGABRT, SIG_IGN);
@@ -979,11 +955,12 @@ main(int argc, char **argv)
     ev_signal_start(EV_DEFAULT, &sigint_watcher);
     ev_signal_start(EV_DEFAULT, &sigterm_watcher);
     ev_signal_start(EV_DEFAULT, &sigchld_watcher);
-#endif
 
     // Setup keys
     LOGI("initializing ciphers... %s", method);
-    int m = enc_init(password, method);
+    crypto = crypto_init(password, method);
+    if (crypto == NULL)
+        FATAL("failed to initialize ciphers");
 
     // Setup proxy context
     struct listen_ctx listen_ctx;
@@ -993,9 +970,8 @@ main(int argc, char **argv)
     listen_ctx.remote_addr = ss_malloc(sizeof(struct sockaddr *) * remote_num);
     memset(listen_ctx.remote_addr, 0, sizeof(struct sockaddr *) * remote_num);
     for (i = 0; i < remote_num; i++) {
-        char *host = remote_addr[i].host;
-        char *port = remote_addr[i].port == NULL ? remote_port :
-                     remote_addr[i].port;
+        char *host                       = remote_addr[i].host;
+        char *port                       = remote_addr[i].port == NULL ? remote_port : remote_addr[i].port;
         struct sockaddr_storage *storage = ss_malloc(sizeof(struct sockaddr_storage));
         memset(storage, 0, sizeof(struct sockaddr_storage));
         if (get_sockaddr(host, port, storage, 1, ipv6first) == -1) {
@@ -1005,7 +981,6 @@ main(int argc, char **argv)
     }
     listen_ctx.timeout = atoi(timeout);
     listen_ctx.iface   = iface;
-    listen_ctx.method  = m;
     listen_ctx.mptcp   = mptcp;
 
     struct ev_loop *loop = EV_DEFAULT;
@@ -1031,9 +1006,16 @@ main(int argc, char **argv)
     // Setup UDP
     if (mode != TCP_ONLY) {
         LOGI("UDP relay enabled");
-        init_udprelay(local_addr, local_port, listen_ctx.remote_addr[0],
-                      get_sockaddr_len(listen_ctx.remote_addr[0]),
-                      tunnel_addr, mtu, m, listen_ctx.timeout, iface);
+        char *host                       = remote_addr[0].host;
+        char *port                       = remote_addr[0].port == NULL ? remote_port : remote_addr[0].port;
+        struct sockaddr_storage *storage = ss_malloc(sizeof(struct sockaddr_storage));
+        memset(storage, 0, sizeof(struct sockaddr_storage));
+        if (get_sockaddr(host, port, storage, 1, ipv6first) == -1) {
+            FATAL("failed to resolve the provided hostname");
+        }
+        struct sockaddr *addr = (struct sockaddr *)storage;
+        init_udprelay(local_addr, local_port, addr, get_sockaddr_len(addr),
+                      tunnel_addr, mtu, crypto, listen_ctx.timeout, iface);
     }
 
     if (mode == UDP_ONLY) {
@@ -1047,17 +1029,11 @@ main(int argc, char **argv)
         FATAL("failed to switch user");
     }
 
-#ifndef __MINGW32__
     if (geteuid() == 0) {
         LOGI("running from root user");
     }
-#endif
 
     ev_run(loop, 0);
-
-#ifdef __MINGW32__
-    winsock_cleanup();
-#endif
 
     return 0;
 }

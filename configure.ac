@@ -3,7 +3,7 @@ dnl Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.67])
 AC_INIT([fuckshadows-libev], [0.2], [test@fuckshadows.com])
-AC_CONFIG_SRCDIR([src/encrypt.c])
+AC_CONFIG_SRCDIR([src/crypto.c])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_AUX_DIR(auto)
 AC_CONFIG_MACRO_DIR([m4])

@@ -1,7 +1,7 @@
 /*
  * udprelay.c - Setup UDP relay for both client and server
  *
- * Copyright (C) 2013 - 2016, Max Lv <max.c.lv@gmail.com>
+ * Copyright (C) 2013 - 2017, Max Lv <max.c.lv@gmail.com>
  *
  * This file is part of the shadowsocks-libev.
  *
@@ -30,13 +30,11 @@
 #include <time.h>
 #include <unistd.h>
 
-#ifndef __MINGW32__
 #include <arpa/inet.h>
 #include <errno.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <pthread.h>
-#endif
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -46,10 +44,6 @@
 #include <net/if.h>
 #include <sys/ioctl.h>
 #define SET_INTERFACE
-#endif
-
-#ifdef __MINGW32__
-#include "win32.h"
 #endif
 
 #include <libcork/core.h>
@@ -108,7 +102,6 @@ static int buf_size                                  = DEFAULT_PACKET_SIZE * 2;
 static int server_num                                = 0;
 static server_ctx_t *server_ctx_list[MAX_REMOTE_NUM] = { NULL };
 
-#ifndef __MINGW32__
 static int
 setnonblocking(int fd)
 {
@@ -118,8 +111,6 @@ setnonblocking(int fd)
     }
     return fcntl(fd, F_SETFL, flags | O_NONBLOCK);
 }
-
-#endif
 
 #if defined(MODULE_REMOTE) && defined(SO_BROADCAST)
 static int
@@ -225,7 +216,8 @@ parse_udprealy_header(const char *buf, const size_t buf_len,
     int offset         = 1;
 
     // get remote addr and port
-    if ((atyp & ADDRTYPE_MASK) == ADDR_IPV4) {
+    if ((atyp & ADDRTYPE_MASK) == 1) {
+        // IP V4
         size_t in_addr_len = sizeof(struct in_addr);
         if (buf_len >= in_addr_len + 3) {
             if (storage != NULL) {
@@ -240,7 +232,8 @@ parse_udprealy_header(const char *buf, const size_t buf_len,
             }
             offset += in_addr_len;
         }
-    } else if ((atyp & ADDRTYPE_MASK) == ADDR_DOMAIN) {
+    } else if ((atyp & ADDRTYPE_MASK) == 3) {
+        // Domain name
         uint8_t name_len = *(uint8_t *)(buf + offset);
         if (name_len + 4 <= buf_len) {
             if (storage != NULL) {
@@ -266,7 +259,8 @@ parse_udprealy_header(const char *buf, const size_t buf_len,
             }
             offset += 1 + name_len;
         }
-    } else if ((atyp & ADDRTYPE_MASK) == ADDR_IPV6) {
+    } else if ((atyp & ADDRTYPE_MASK) == 4) {
+        // IP V6
         size_t in6_addr_len = sizeof(struct in6_addr);
         if (buf_len >= in6_addr_len + 3) {
             if (storage != NULL) {
@@ -687,7 +681,7 @@ remote_recv_cb(EV_P_ ev_io *w, int revents)
     buf->len = r;
 
 #ifdef MODULE_LOCAL
-    int err = ss_decrypt_all(buf, server_ctx->method, buf_size);
+    int err = server_ctx->crypto->decrypt_all(buf, server_ctx->crypto->cipher, buf_size);
     if (err) {
         // drop the packet silently
         goto CLEAN_UP;
@@ -750,7 +744,7 @@ remote_recv_cb(EV_P_ ev_io *w, int revents)
     memcpy(buf->data, addr_header, addr_header_len);
     buf->len += addr_header_len;
 
-    int err = ss_encrypt_all(buf, server_ctx->method, buf_size);
+    int err = server_ctx->crypto->encrypt_all(buf, server_ctx->crypto->cipher, buf_size);
     if (err) {
         // drop the packet silently
         goto CLEAN_UP;
@@ -897,7 +891,7 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
 #ifdef MODULE_REMOTE
     tx += buf->len;
 
-    int err = ss_decrypt_all(buf, server_ctx->method, buf_size);
+    int err = server_ctx->crypto->decrypt_all(buf, server_ctx->crypto->cipher, buf_size);
     if (err) {
         // drop the packet silently
         goto CLEAN_UP;
@@ -931,12 +925,16 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
      * +----+------+------+----------+----------+----------+
      *
      * shadowsocks UDP Request (before encrypted)
-     * +------+----------+----------+----------+
-     * | ATYP | DST.ADDR | DST.PORT |   DATA   |
-     * +------+----------+----------+----------+
-     * |  1   | Variable |    2     | Variable |
-     * +------+----------+----------+----------+
+     * +------+----------+----------+----------+-------------+
+     * | ATYP | DST.ADDR | DST.PORT |   DATA   |  HMAC-SHA1  |
+     * +------+----------+----------+----------+-------------+
+     * |  1   | Variable |    2     | Variable |     10      |
+     * +------+----------+----------+----------+-------------+
      *
+     * If ATYP & ONETIMEAUTH_FLAG(0x10) != 0, Authentication (HMAC-SHA1) is enabled.
+     *
+     * The key of HMAC-SHA1 is (IV + KEY) and the input is the whole packet.
+     * The output of HMAC-SHA is truncated to 10 bytes (leftmost bits).
      *
      * shadowsocks UDP Response (before encrypted)
      * +------+----------+----------+----------+
@@ -1158,7 +1156,7 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
         memmove(buf->data, buf->data + offset, buf->len);
     }
 
-    int err = ss_encrypt_all(buf, server_ctx->method, buf_size);
+    int err = server_ctx->crypto->encrypt_all(buf, server_ctx->crypto->cipher, buf_size);
 
     if (err) {
         // drop the packet silently
@@ -1308,7 +1306,7 @@ init_udprelay(const char *server_host, const char *server_port,
               const ss_addr_t tunnel_addr,
 #endif
 #endif
-              int mtu, int method, int timeout, const char *iface)
+              int mtu, crypto_t *crypto, int timeout, const char *iface)
 {
     // Initialize ev loop
     struct ev_loop *loop = EV_DEFAULT;
@@ -1338,7 +1336,7 @@ init_udprelay(const char *server_host, const char *server_port,
     server_ctx->loop = loop;
 #endif
     server_ctx->timeout    = max(timeout, MIN_UDP_TIMEOUT);
-    server_ctx->method     = method;
+    server_ctx->crypto     = crypto;
     server_ctx->iface      = iface;
     server_ctx->conn_cache = conn_cache;
 #ifdef MODULE_LOCAL

@@ -1,7 +1,7 @@
 /*
  * utils.c - Misc utilities
  *
- * Copyright (C) 2013 - 2016, Max Lv <max.c.lv@gmail.com>
+ * Copyright (C) 2013 - 2017, Max Lv <max.c.lv@gmail.com>
  *
  * This file is part of the shadowsocks-libev.
  *
@@ -29,10 +29,8 @@
 #include <string.h>
 #include <errno.h>
 #include <ctype.h>
-#ifndef __MINGW32__
 #include <pwd.h>
 #include <grp.h>
-#endif
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -54,15 +52,12 @@ FILE *logfile;
 int use_syslog = 0;
 #endif
 
-#ifndef __MINGW32__
 void
 ERROR(const char *s)
 {
     char *msg = strerror(errno);
     LOGE("%s: %s", s, msg);
 }
-
-#endif
 
 int use_tty = 1;
 
@@ -104,7 +99,6 @@ ss_isnumeric(const char *s)
 int
 run_as(const char *user)
 {
-#ifndef __MINGW32__
     if (user[0]) {
         /* Convert user to a long integer if it is a non-negative number.
          * -1 means it is a user name. */
@@ -199,7 +193,6 @@ run_as(const char *user)
 #endif
     }
 
-#endif // __MINGW32__
     return 1;
 }
 
@@ -226,24 +219,45 @@ FATAL(const char *msg)
     exit(-1);
 }
 
+void *
+ss_malloc(size_t size)
+{
+    void *tmp = malloc(size);
+    if (tmp == NULL)
+        exit(EXIT_FAILURE);
+    return tmp;
+}
+
+void *
+ss_realloc(void *ptr, size_t new_size)
+{
+    void *new = realloc(ptr, new_size);
+    if (new == NULL) {
+        free(ptr);
+        ptr = NULL;
+        exit(EXIT_FAILURE);
+    }
+    return new;
+}
+
 void
 usage()
 {
     printf("\n");
-    printf("fuckshadows-libev %s with %s\n\n", VERSION, USING_CRYPTO);
+    printf("shadowsocks-libev %s\n\n", VERSION);
     printf(
-        "  modified by test@fuckshadows.com\n\n");
+        "  maintained by Max Lv <max.c.lv@gmail.com> and Linus Yang <laokongzi@gmail.com>\n\n");
     printf("  usage:\n\n");
 #ifdef MODULE_LOCAL
-    printf("    fs-local\n");
+    printf("    ss-local\n");
 #elif MODULE_REMOTE
-    printf("    fs-server\n");
+    printf("    ss-server\n");
 #elif MODULE_TUNNEL
-    printf("    fs-tunnel\n");
+    printf("    ss-tunnel\n");
 #elif MODULE_REDIR
-    printf("    fs-redir\n");
+    printf("    ss-redir\n");
 #elif MODULE_MANAGER
-    printf("    fs-manager\n");
+    printf("    ss-manager\n");
 #endif
     printf("\n");
     printf(
@@ -348,7 +362,6 @@ usage()
 void
 daemonize(const char *path)
 {
-#ifndef __MINGW32__
     /* Our process ID and Session ID */
     pid_t pid, sid;
 
@@ -393,7 +406,6 @@ daemonize(const char *path)
     close(STDIN_FILENO);
     close(STDOUT_FILENO);
     close(STDERR_FILENO);
-#endif
 }
 
 #ifdef HAVE_SETRLIMIT

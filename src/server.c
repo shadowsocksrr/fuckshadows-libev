@@ -1,7 +1,7 @@
 /*
  * server.c - Provide shadowsocks service
  *
- * Copyright (C) 2013 - 2016, Max Lv <max.c.lv@gmail.com>
+ * Copyright (C) 2013 - 2017, Max Lv <max.c.lv@gmail.com>
  *
  * This file is part of the shadowsocks-libev.
  *
@@ -36,21 +36,15 @@
 #include <getopt.h>
 #include <math.h>
 
-#ifndef __MINGW32__
 #include <netdb.h>
 #include <errno.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <pthread.h>
 #include <sys/un.h>
-#endif
 
 #include <libcork/core.h>
 #include <udns.h>
-
-#ifdef __MINGW32__
-#include "win32.h"
-#endif
 
 #if defined(HAVE_SYS_IOCTL_H) && defined(HAVE_NET_IF_H) && defined(__linux__)
 #include <net/if.h>
@@ -104,10 +98,9 @@ static void close_and_free_server(EV_P_ server_t *server);
 static void server_resolve_cb(struct sockaddr *addr, void *data);
 static void query_free_cb(void *data);
 
-//static size_t parse_header_len(const char atyp, const char *data, size_t offset);
-static int is_header_complete(const buffer_t *buf);
-
 int verbose = 0;
+
+static crypto_t *crypto;
 
 static int acl       = 0;
 static int mode      = TCP_ONLY;
@@ -222,58 +215,6 @@ free_connections(struct ev_loop *loop)
     }
 }
 
-
-//static size_t
-//parse_header_len(const char atyp, const char *data, size_t offset)
-//{
-// size_t len = 0;
-// if ((atyp & ADDRTYPE_MASK) == ADDR_IPV4) {
-//     len += sizeof(struct in_addr);
-// } else if ((atyp & ADDRTYPE_MASK) == ADDR_DOMAIN) {
-//     uint8_t name_len = *(uint8_t *)(data + offset);
-//     len += name_len + 1;
-// } else if ((atyp & ADDRTYPE_MASK) == ADDR_IPV6) {
-//     len += sizeof(struct in6_addr);
-// } else {
-//     return 0;
-// }
-// // port
-// len += 2;
-// return len;
-//}
-//
-
-static int
-is_header_complete(const buffer_t *buf)
-{
-    size_t header_len = 0;
-    size_t buf_len    = buf->len;
-
-    char atyp = buf->data[header_len];
-
-    // 1 byte for atyp
-    header_len++;
-
-    if ((atyp & ADDRTYPE_MASK) == ADDR_IPV4) {
-        header_len += sizeof(struct in_addr);
-    } else if ((atyp & ADDRTYPE_MASK) == ADDR_DOMAIN) {
-        // domain len + len of domain
-        if (buf_len < header_len + 1)
-            return 0;
-        uint8_t name_len = *(uint8_t *)(buf->data + header_len);
-        header_len += name_len + 1;
-    } else if ((atyp & ADDRTYPE_MASK) == ADDR_IPV6) {
-        header_len += sizeof(struct in6_addr);
-    } else {
-        return -1;
-    }
-
-    // len of port
-    header_len += 2;
-
-    return buf_len >= header_len ? 1 : 0;
-}
-
 static char *
 get_peer_name(int fd)
 {
@@ -361,7 +302,6 @@ setfastopen(int fd)
     return s;
 }
 
-#ifndef __MINGW32__
 int
 setnonblocking(int fd)
 {
@@ -371,8 +311,6 @@ setnonblocking(int fd)
     }
     return fcntl(fd, F_SETFL, flags | O_NONBLOCK);
 }
-
-#endif
 
 int
 create_and_bind(const char *host, const char *port, int mptcp)
@@ -605,25 +543,16 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
     server_t *server              = server_recv_ctx->server;
     remote_t *remote              = NULL;
 
-    int len       = server->buf->len;
     buffer_t *buf = server->buf;
 
-    if (server->stage > STAGE_PARSE) {
+    if (server->stage == STAGE_STREAM) {
         remote = server->remote;
         buf    = remote->buf;
-        len    = 0;
 
         ev_timer_again(EV_A_ & server->recv_ctx->watcher);
     }
 
-    if (len > BUF_SIZE) {
-        ERROR("out of recv buffer");
-        close_and_free_remote(EV_A_ remote);
-        close_and_free_server(EV_A_ server);
-        return;
-    }
-
-    ssize_t r = recv(server->fd, buf->data + len, BUF_SIZE - len, 0);
+    ssize_t r = recv(server->fd, buf->data, BUF_SIZE, 0);
 
     if (r == 0) {
         // connection closed
@@ -646,85 +575,18 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
         }
     }
 
-    tx += r;
+    tx      += r;
+    buf->len = r;
 
-    if (server->frag >= MAX_FRAG) {
-        LOGE("fragmentation detected");
-        close_and_free_remote(EV_A_ remote);
-        close_and_free_server(EV_A_ server);
-        return;
-    }
+    int err = crypto->decrypt(buf, server->d_ctx, BUF_SIZE);
 
-    if (server->stage == STAGE_ERROR) {
-        server->buf->len = 0;
-        server->buf->idx = 0;
-        return;
-    }
-
-    // handle incomplete header part 1
-    if (server->stage == STAGE_INIT) {
-        buf->len += r;
-
-        if (buf->len <= enc_get_nonce_len() + 1) {
-            // wait for more
-            server->frag++;
-            return;
-        }
-    } else {
-        buf->len = r;
-    }
-
-    int err = ss_decrypt(buf, server->d_ctx, BUF_SIZE);
-
-    if (err) {
+    if (err == CRYPTO_ERROR) {
         report_addr(server->fd, MALICIOUS);
         close_and_free_remote(EV_A_ remote);
         close_and_free_server(EV_A_ server);
         return;
-    }
-
-    // handle incomplete header part 2
-    if (server->stage == STAGE_INIT) {
-        int ret = is_header_complete(server->buf);
-        if (ret == 1) {
-            bfree(server->header_buf);
-            ss_free(server->header_buf);
-            server->stage = STAGE_PARSE;
-        } else if (ret == -1) {
-            server->stage = STAGE_ERROR;
-            report_addr(server->fd, MALFORMED);
-            server->buf->len = 0;
-            server->buf->idx = 0;
-            return;
-        } else {
-            server->stage = STAGE_HANDSHAKE;
-        }
-    }
-
-    if (server->stage == STAGE_HANDSHAKE) {
-        size_t header_len = server->header_buf->len;
-        brealloc(server->header_buf, server->buf->len + header_len, BUF_SIZE);
-        memcpy(server->header_buf->data + header_len,
-               server->buf->data, server->buf->len);
-        server->header_buf->len = server->buf->len + header_len;
-
-        int ret = is_header_complete(server->buf);
-
-        if (ret == 1) {
-            brealloc(server->buf, server->header_buf->len, BUF_SIZE);
-            memcpy(server->buf->data, server->header_buf->data, server->header_buf->len);
-            server->buf->len = server->header_buf->len;
-            bfree(server->header_buf);
-            ss_free(server->header_buf);
-            server->stage = STAGE_PARSE;
-        } else {
-            if (ret == -1)
-                server->stage = STAGE_ERROR;
-            server->frag++;
-            server->buf->len = 0;
-            server->buf->idx = 0;
-            return;
-        }
+    } else if (err == CRYPTO_NEED_MORE) {
+        return;
     }
 
     // handshake and transmit data
@@ -748,15 +610,16 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
             ev_io_start(EV_A_ & remote->send_ctx->io);
         }
         return;
-    } else if (server->stage == STAGE_PARSE) {
+    } else if (server->stage == STAGE_INIT) {
         /*
          * Shadowsocks TCP Relay Header:
          *
-         *    +------+----------+----------+
-         *    | ATYP | DST.ADDR | DST.PORT |
-         *    +------+----------+----------+
-         *    |  1   | Variable |    2     |
-         *    +------+----------+----------+
+         *    +------+----------+----------+----------------+
+         *    | ATYP | DST.ADDR | DST.PORT |    HMAC-SHA1   |
+         *    +------+----------+----------+----------------+
+         *    |  1   | Variable |    2     |      10        |
+         *    +------+----------+----------+----------------+
+         *
          */
 
         int offset     = 0;
@@ -770,7 +633,8 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
         memset(&storage, 0, sizeof(struct sockaddr_storage));
 
         // get remote addr and port
-        if ((atyp & ADDRTYPE_MASK) == ADDR_IPV4) {
+        if ((atyp & ADDRTYPE_MASK) == 1) {
+            // IP V4
             struct sockaddr_in *addr = (struct sockaddr_in *)&storage;
             size_t in_addr_len       = sizeof(struct in_addr);
             addr->sin_family = AF_INET;
@@ -791,7 +655,8 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
             info.ai_protocol = IPPROTO_TCP;
             info.ai_addrlen  = sizeof(struct sockaddr_in);
             info.ai_addr     = (struct sockaddr *)addr;
-        } else if ((atyp & ADDRTYPE_MASK) == ADDR_DOMAIN) {
+        } else if ((atyp & ADDRTYPE_MASK) == 3) {
+            // Domain name
             uint8_t name_len = *(uint8_t *)(server->buf->data + offset);
             if (name_len + 4 <= server->buf->len) {
                 memcpy(host, server->buf->data + offset + 1, name_len);
@@ -838,7 +703,8 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
                 }
                 need_query = 1;
             }
-        } else if ((atyp & ADDRTYPE_MASK) == ADDR_IPV6) {
+        } else if ((atyp & ADDRTYPE_MASK) == 4) {
+            // IP V6
             struct sockaddr_in6 *addr = (struct sockaddr_in6 *)&storage;
             size_t in6_addr_len       = sizeof(struct in6_addr);
             addr->sin6_family = AF_INET6;
@@ -882,7 +748,7 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
         }
 
         if (verbose) {
-            if ((atyp & ADDRTYPE_MASK) == ADDR_IPV6)
+            if ((atyp & ADDRTYPE_MASK) == 4)
                 LOGI("connect to [%s]:%d", host, ntohs(port));
             else
                 LOGI("connect to %s:%d", host, ntohs(port));
@@ -1004,16 +870,7 @@ server_timeout_cb(EV_P_ ev_timer *watcher, int revents)
         LOGI("TCP connection timeout");
     }
 
-    if (server->stage < STAGE_PARSE) {
-        if (verbose) {
-            size_t len = server->stage ?
-                         server->header_buf->len : server->buf->len;
-#ifdef __MINGW32__
-            LOGI("incomplete header: %u", len);
-#else
-            LOGI("incomplete header: %zu", len);
-#endif
-        }
+    if (server->stage < STAGE_STREAM) {
         report_addr(server->fd, SUSPICIOUS);
     }
 
@@ -1125,7 +982,7 @@ remote_recv_cb(EV_P_ ev_io *w, int revents)
     rx += r;
 
     server->buf->len = r;
-    int err = ss_encrypt(server->buf, server->e_ctx, BUF_SIZE);
+    int err = crypto->encrypt(server->buf, server->e_ctx, BUF_SIZE);
 
     if (err) {
         LOGE("invalid password or cipher");
@@ -1324,14 +1181,12 @@ new_server(int fd, listen_ctx_t *listener)
 
     memset(server, 0, sizeof(server_t));
 
-    server->recv_ctx   = ss_malloc(sizeof(server_ctx_t));
-    server->send_ctx   = ss_malloc(sizeof(server_ctx_t));
-    server->buf        = ss_malloc(sizeof(buffer_t));
-    server->header_buf = ss_malloc(sizeof(buffer_t));
+    server->recv_ctx = ss_malloc(sizeof(server_ctx_t));
+    server->send_ctx = ss_malloc(sizeof(server_ctx_t));
+    server->buf      = ss_malloc(sizeof(buffer_t));
     memset(server->recv_ctx, 0, sizeof(server_ctx_t));
     memset(server->send_ctx, 0, sizeof(server_ctx_t));
     balloc(server->buf, BUF_SIZE);
-    balloc(server->header_buf, BUF_SIZE);
     server->fd                  = fd;
     server->recv_ctx->server    = server;
     server->recv_ctx->connected = 0;
@@ -1343,15 +1198,10 @@ new_server(int fd, listen_ctx_t *listener)
     server->listen_ctx          = listener;
     server->remote              = NULL;
 
-    if (listener->method) {
-        server->e_ctx = ss_malloc(sizeof(enc_ctx_t));
-        server->d_ctx = ss_malloc(sizeof(enc_ctx_t));
-        enc_ctx_init(listener->method, server->e_ctx, 1);
-        enc_ctx_init(listener->method, server->d_ctx, 0);
-    } else {
-        server->e_ctx = NULL;
-        server->d_ctx = NULL;
-    }
+    server->e_ctx = ss_malloc(sizeof(cipher_ctx_t));
+    server->d_ctx = ss_malloc(sizeof(cipher_ctx_t));
+    crypto->ctx_init(crypto->cipher, server->e_ctx, 1);
+    crypto->ctx_init(crypto->cipher, server->d_ctx, 0);
 
     int request_timeout = min(MAX_REQUEST_TIMEOUT, listener->timeout)
                           + rand() % MAX_REQUEST_TIMEOUT;
@@ -1360,11 +1210,6 @@ new_server(int fd, listen_ctx_t *listener)
     ev_io_init(&server->send_ctx->io, server_send_cb, fd, EV_WRITE);
     ev_timer_init(&server->recv_ctx->watcher, server_timeout_cb,
                   request_timeout, listener->timeout);
-
-    server->chunk = ss_malloc(sizeof(chunk_t));
-    memset(server->chunk, 0, sizeof(chunk_t));
-    server->chunk->buf = ss_malloc(sizeof(buffer_t));
-    memset(server->chunk->buf, 0, sizeof(buffer_t));
 
     cork_dllist_add(&connections, &server->entries);
 
@@ -1376,31 +1221,20 @@ free_server(server_t *server)
 {
     cork_dllist_remove(&server->entries);
 
-    if (server->chunk != NULL) {
-        if (server->chunk->buf != NULL) {
-            bfree(server->chunk->buf);
-            ss_free(server->chunk->buf);
-        }
-        ss_free(server->chunk);
-    }
     if (server->remote != NULL) {
         server->remote->server = NULL;
     }
     if (server->e_ctx != NULL) {
-        cipher_context_release(&server->e_ctx->evp);
+        crypto->ctx_release(server->e_ctx);
         ss_free(server->e_ctx);
     }
     if (server->d_ctx != NULL) {
-        cipher_context_release(&server->d_ctx->evp);
+        crypto->ctx_release(server->d_ctx);
         ss_free(server->d_ctx);
     }
     if (server->buf != NULL) {
         bfree(server->buf);
         ss_free(server->buf);
-    }
-    if (server->header_buf != NULL) {
-        bfree(server->header_buf);
-        ss_free(server->header_buf);
     }
 
     ss_free(server->recv_ctx);
@@ -1468,7 +1302,8 @@ accept_cb(EV_P_ ev_io *w, int revents)
                 in_white_list = 1;
             }
         }
-        if (!in_white_list && check_block_list(peer_name)) {
+        if (!in_white_list
+            && check_block_list(peer_name)) {
             LOGE("block all requests from %s", peer_name);
 #ifdef __linux__
             set_linger(serverfd);
@@ -1532,7 +1367,7 @@ main(int argc, char **argv)
 
     USE_TTY();
 
-    while ((c = getopt_long(argc, argv, "f:s:p:l:k:t:m:b:c:i:d:a:n:huUv6",
+    while ((c = getopt_long(argc, argv, "f:s:p:l:k:t:m:b:c:i:d:a:n:huUvA6",
                             long_options, &option_index)) != -1) {
         switch (c) {
         case 0:
@@ -1736,13 +1571,9 @@ main(int argc, char **argv)
         LOGI("TCP relay disabled");
     }
 
-#ifdef __MINGW32__
-    winsock_init();
-#else
     // ignore SIGPIPE
     signal(SIGPIPE, SIG_IGN);
     signal(SIGABRT, SIG_IGN);
-#endif
 
     ev_signal_init(&sigint_watcher, signal_cb, SIGINT);
     ev_signal_init(&sigterm_watcher, signal_cb, SIGTERM);
@@ -1753,22 +1584,15 @@ main(int argc, char **argv)
 
     // setup keys
     LOGI("initializing ciphers... %s", method);
-    int m = enc_init(password, method);
+    crypto = crypto_init(password, method);
+    if (crypto == NULL)
+        FATAL("failed to initialize ciphers");
 
     // initialize ev loop
     struct ev_loop *loop = EV_DEFAULT;
 
     // setup udns
-    if (nameserver_num == 0) {
-#ifdef __MINGW32__
-        nameservers[nameserver_num++] = "8.8.8.8";
-        resolv_init(loop, nameservers, nameserver_num, ipv6first);
-#else
-        resolv_init(loop, NULL, 0, ipv6first);
-#endif
-    } else {
-        resolv_init(loop, nameservers, nameserver_num, ipv6first);
-    }
+    resolv_init(loop, nameservers, nameserver_num, ipv6first);
 
     for (int i = 0; i < nameserver_num; i++)
         LOGI("using nameserver: %s", nameservers[i]);
@@ -1777,10 +1601,10 @@ main(int argc, char **argv)
     listen_ctx_t listen_ctx_list[server_num];
 
     // bind to each interface
-    for (int i = 0; i < server_num; i++) {
-        const char *host = server_host[i];
+    if (mode != UDP_ONLY) {
+        for (int i = 0; i < server_num; i++) {
+            const char *host = server_host[i];
 
-        if (mode != UDP_ONLY) {
             // Bind to port
             int listenfd;
             listenfd = create_and_bind(host, server_port, mptcp);
@@ -1797,23 +1621,30 @@ main(int argc, char **argv)
             // Setup proxy context
             listen_ctx->timeout = atoi(timeout);
             listen_ctx->fd      = listenfd;
-            listen_ctx->method  = m;
             listen_ctx->iface   = iface;
             listen_ctx->loop    = loop;
 
             ev_io_init(&listen_ctx->io, accept_cb, listenfd, EV_READ);
             ev_io_start(loop, &listen_ctx->io);
-        }
 
-        // Setup UDP
-        if (mode != TCP_ONLY) {
-            init_udprelay(server_host[i], server_port, mtu, m, atoi(timeout), iface);
+            if (host && strcmp(host, ":") > 0)
+                LOGI("tcp server listening at [%s]:%s", host, server_port);
+            else
+                LOGI("tcp server listening at %s:%s", host ? host : "*", server_port);
         }
+    }
 
-        if (host && strcmp(host, ":") > 0)
-            LOGI("listening at [%s]:%s", host, server_port);
-        else
-            LOGI("listening at %s:%s", host ? host : "*", server_port);
+    if (mode != TCP_ONLY) {
+        for (int i = 0; i < server_num; i++) {
+            const char *host = server_host[i];
+            const char *port = server_port;
+            // Setup UDP
+            init_udprelay(host, port, mtu, crypto, atoi(timeout), iface);
+            if (host && strcmp(host, ":") > 0)
+                LOGI("udp server listening at [%s]:%s", host, port);
+            else
+                LOGI("udp server listening at %s:%s", host ? host : "*", port);
+        }
     }
 
     if (manager_address != NULL) {
@@ -1829,11 +1660,9 @@ main(int argc, char **argv)
         FATAL("failed to switch user");
     }
 
-#ifndef __MINGW32__
     if (geteuid() == 0) {
         LOGI("running from root user");
     }
-#endif
 
     // init block list
     init_block_list();
@@ -1875,10 +1704,6 @@ main(int argc, char **argv)
     }
 
     resolv_shutdown(loop);
-
-#ifdef __MINGW32__
-    winsock_cleanup();
-#endif
 
     return 0;
 }
