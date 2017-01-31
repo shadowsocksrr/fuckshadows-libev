@@ -174,8 +174,26 @@ char *ss_strndup(const char *s, size_t n);
 int set_nofile(int nofile);
 #endif
 
-void *ss_malloc(size_t size);
-void *ss_realloc(void *ptr, size_t new_size);
+inline void *
+ss_malloc(size_t size)
+{
+    void *tmp = malloc(size);
+    if (tmp == NULL)
+        exit(EXIT_FAILURE);
+    return tmp;
+}
+
+inline void *
+ss_realloc(void *ptr, size_t new_size)
+{
+    void *new = realloc(ptr, new_size);
+    if (new == NULL) {
+        free(ptr);
+        ptr = NULL;
+        exit(EXIT_FAILURE);
+    }
+    return new;
+}
 
 #define ss_free(ptr)     \
     do {                 \
