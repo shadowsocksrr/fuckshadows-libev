@@ -259,7 +259,7 @@ cipher_ctx_set_nonce(cipher_ctx_t *cipher_ctx, uint8_t *nonce, size_t nonce_len,
     if (cipher->method == RC4_MD5) {
         unsigned char key_nonce[32];
         memcpy(key_nonce, cipher->key, 16);
-        memcpy(key_nonce + 16, cipher_ctx->nonce, 16);
+        memcpy(key_nonce + 16, nonce, 16);
         true_key  = crypto_md5(key_nonce, 32, NULL);
         nonce_len = 0;
     } else {
@@ -286,6 +286,7 @@ cipher_ctx_set_nonce(cipher_ctx_t *cipher_ctx, uint8_t *nonce, size_t nonce_len,
 
 #ifdef DEBUG
     dump("NONCE", (char *)nonce, nonce_len);
+    dump("KEY", (char *)true_key, 32);
 #endif
 }
 
@@ -312,9 +313,7 @@ stream_encrypt_all(buffer_t *plaintext, cipher_t *cipher, size_t capacity)
     buffer_t *ciphertext = &tmp;
     ciphertext->len = plaintext->len;
 
-    uint8_t nonce[MAX_NONCE_LENGTH];
-
-    rand_bytes(nonce, nonce_len);
+    uint8_t *nonce = cipher_ctx.nonce;
     cipher_ctx_set_nonce(&cipher_ctx, nonce, nonce_len, 1);
     memcpy(ciphertext->data, nonce, nonce_len);
 
@@ -338,6 +337,7 @@ stream_encrypt_all(buffer_t *plaintext, cipher_t *cipher, size_t capacity)
 #ifdef DEBUG
     dump("PLAIN", plaintext->data, plaintext->len);
     dump("CIPHER", ciphertext->data + nonce_len, ciphertext->len);
+    dump("NONCE", ciphertext->data, nonce_len);
 #endif
 
     stream_ctx_release(&cipher_ctx);
@@ -435,7 +435,7 @@ stream_decrypt_all(buffer_t *ciphertext, cipher_t *cipher, size_t capacity)
     buffer_t *plaintext = &tmp;
     plaintext->len = ciphertext->len - nonce_len;
 
-    uint8_t nonce[MAX_NONCE_LENGTH];
+    uint8_t *nonce = cipher_ctx.nonce;
     memcpy(nonce, ciphertext->data, nonce_len);
     cipher_ctx_set_nonce(&cipher_ctx, nonce, nonce_len, 0);
 
@@ -459,6 +459,7 @@ stream_decrypt_all(buffer_t *ciphertext, cipher_t *cipher, size_t capacity)
 #ifdef DEBUG
     dump("PLAIN", plaintext->data, plaintext->len);
     dump("CIPHER", ciphertext->data + nonce_len, ciphertext->len - nonce_len);
+    dump("NONCE", ciphertext->data, nonce_len);
 #endif
 
     stream_ctx_release(&cipher_ctx);
