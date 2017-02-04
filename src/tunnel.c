@@ -990,10 +990,10 @@ main(int argc, char **argv)
         int listenfd;
         listenfd = create_and_bind(local_addr, local_port);
         if (listenfd == -1) {
-            FATAL("bind() error:");
+            FATAL("bind() error");
         }
         if (listen(listenfd, SOMAXCONN) == -1) {
-            FATAL("listen() error:");
+            FATAL("listen() error");
         }
         setnonblocking(listenfd);
 

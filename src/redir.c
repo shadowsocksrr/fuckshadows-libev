@@ -916,6 +916,9 @@ main(int argc, char **argv)
         if (user == NULL) {
             user = conf->user;
         }
+        if (mode == TCP_ONLY) {
+            mode = conf->mode;
+        }
         if (mtu == 0) {
             mtu = conf->mtu;
         }
@@ -987,11 +990,12 @@ main(int argc, char **argv)
         FATAL("failed to initialize ciphers");
 
     // Setup proxy context
-    listen_ctx_t listen_ctx;
+    struct listen_ctx listen_ctx;
+    memset(&listen_ctx, 0, sizeof(struct listen_ctx));
     listen_ctx.remote_num  = remote_num;
     listen_ctx.remote_addr = ss_malloc(sizeof(struct sockaddr *) * remote_num);
     memset(listen_ctx.remote_addr, 0, sizeof(struct sockaddr *) * remote_num);
-    for (int i = 0; i < remote_num; i++) {
+    for (i = 0; i < remote_num; i++) {
         char *host = remote_addr[i].host;
         char *port = remote_addr[i].port == NULL ? remote_port :
                      remote_addr[i].port;
