@@ -54,6 +54,7 @@
 #endif
 
 #define CHUNK_SIZE_LEN          2
+#define CHUNK_SIZE_MASK         0x3FFF
 
 /*
  * This is SIP004 proposed by @Mygod, the design of TCP chunk is from @breakwa11 and
@@ -86,7 +87,7 @@
  *
  * Header input: atyp + dst.addr + dst.port
  * HeaderLen is length(atyp + dst.addr + dst.port)
- * Header_TAG and Header_TAG are in plaintext
+ * HeaderLen_TAG and Header_TAG are in plaintext
  *
  * TCP Chunk (before encryption)
  * +----------+
@@ -497,10 +498,12 @@ static int
 aead_chunk_encrypt(cipher_ctx_t *ctx, uint8_t *p, uint8_t *c, uint8_t *n,
                    uint16_t plen, size_t nlen, size_t tlen)
 {
+    assert(plen + tlen < CHUNK_SIZE_MASK);
+
     int err;
     size_t clen;
     uint8_t len_buf[CHUNK_SIZE_LEN];
-    uint16_t t = htons(plen + tlen);
+    uint16_t t = htons(plen & CHUNK_SIZE_MASK);
     memcpy(len_buf, &t, CHUNK_SIZE_LEN);
 
     clen = CHUNK_SIZE_LEN + tlen;
@@ -595,19 +598,23 @@ aead_chunk_decrypt(cipher_ctx_t *ctx, uint8_t *p, uint8_t *c, uint8_t *n,
     assert(*plen == CHUNK_SIZE_LEN);
 
     mlen = ntohs(*(uint16_t *)len_buf);
+    mlen = mlen & CHUNK_SIZE_MASK;
 
-    size_t chunk_len = tlen + CHUNK_SIZE_LEN + mlen;
+    if (mlen == 0)
+        return CRYPTO_ERROR;
+
+    size_t chunk_len = 2 * tlen + CHUNK_SIZE_LEN + mlen;
 
     if (*clen < chunk_len)
         return CRYPTO_NEED_MORE;
 
     sodium_increment(n, nlen);
 
-    err = cipher_aead_decrypt(ctx, p, plen, c + CHUNK_SIZE_LEN + tlen, mlen,
+    err = cipher_aead_decrypt(ctx, p, plen, c + CHUNK_SIZE_LEN + tlen, mlen + tlen,
                               NULL, 0, n, ctx->cipher->key, nlen, tlen);
     if (err)
         return CRYPTO_ERROR;
-    assert(*plen == mlen - tlen);
+    assert(*plen == mlen);
 
     sodium_increment(n, nlen);
 
