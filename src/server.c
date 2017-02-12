@@ -262,7 +262,7 @@ reset_addr(int fd)
 }
 
 static void
-report_addr(int fd, int err_level, const char* info)
+report_addr(int fd, int err_level, const char *info)
 {
 #ifdef __linux__
     set_linger(fd);

@@ -882,13 +882,13 @@ main(int argc, char **argv)
 
     int option_index                    = 0;
     static struct option long_options[] = {
-        { "fast-open",       no_argument,                         0, 0 },
-        { "acl",             required_argument,                   0, 0 },
-        { "manager-address", required_argument,                   0, 0 },
-        { "executable",      required_argument,                   0, 0 },
-        { "mtu",             required_argument,                   0, 0 },
-        { "help",            no_argument,                         0, 0 },
-        {                 0,                             0,       0, 0 }
+        { "fast-open",       no_argument,       0, 0 },
+        { "acl",             required_argument, 0, 0 },
+        { "manager-address", required_argument, 0, 0 },
+        { "executable",      required_argument, 0, 0 },
+        { "mtu",             required_argument, 0, 0 },
+        { "help",            no_argument,       0, 0 },
+        {                 0,                 0, 0, 0 }
     };
 
     opterr = 0;

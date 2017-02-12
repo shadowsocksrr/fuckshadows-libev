@@ -64,7 +64,8 @@ free_addr(ss_addr_t *addr)
 void
 parse_addr(const char *str_in, ss_addr_t *addr)
 {
-    if (str_in == NULL) return;
+    if (str_in == NULL)
+        return;
 
     int ipv6 = 0, ret = -1, n = 0;
     char *pch;
