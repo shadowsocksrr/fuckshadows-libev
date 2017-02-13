@@ -164,3 +164,15 @@ crypto_init(const char *password, const char *method)
     LOGE("invalid cipher name: %s", method);
     return NULL;
 }
+
+#ifdef FS_DEBUG
+void
+dump(char *tag, char *text, int len)
+{
+    int i;
+    printf("%s: ", tag);
+    for (i = 0; i < len; i++)
+        printf("0x%02x ", (uint8_t)text[i]);
+    printf("\n");
+}
+#endif

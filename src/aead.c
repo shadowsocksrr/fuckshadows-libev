@@ -155,19 +155,6 @@
  * 4. Send encrypted chunk
  */
 
-#ifdef DEBUG
-static void
-dump(char *tag, char *text, int len)
-{
-    int i;
-    printf("%s: ", tag);
-    for (i = 0; i < len; i++)
-        printf("0x%02x ", (uint8_t)text[i]);
-    printf("\n");
-}
-
-#endif
-
 const char *supported_aead_ciphers[AEAD_CIPHER_NUM] = {
     "aes-128-gcm",
     "aes-192-gcm",
@@ -444,7 +431,7 @@ aead_cipher_ctx_init(cipher_ctx_t *cipher_ctx, int method, int enc)
         FATAL("Cannot initialize mbed TLS cipher context");
     }
 
-#ifdef DEBUG
+#ifdef FS_DEBUG
     dump("KEY", (char *)cipher_ctx->cipher->key, cipher_ctx->cipher->key_len);
 #endif
 }
@@ -516,7 +503,7 @@ aead_encrypt_all(buffer_t *plaintext, cipher_t *cipher, size_t capacity)
         return CRYPTO_ERROR;
     }
 
-#ifdef DEBUG
+#ifdef FS_DEBUG
     dump("PLAIN", plaintext->data, plaintext->len);
     dump("CIPHER", ciphertext->data + salt_len, ciphertext->len);
 #endif
@@ -573,7 +560,7 @@ aead_decrypt_all(buffer_t *ciphertext, cipher_t *cipher, size_t capacity)
         return CRYPTO_ERROR;
     }
 
-#ifdef DEBUG
+#ifdef FS_DEBUG
     dump("PLAIN", plaintext->data, plaintext->len);
     dump("CIPHER", ciphertext->data + salt_len, ciphertext->len - salt_len);
 #endif
@@ -665,7 +652,7 @@ aead_encrypt(buffer_t *plaintext, cipher_ctx_t *cipher_ctx, size_t capacity)
     if (err)
         return err;
 
-#ifdef DEBUG
+#ifdef FS_DEBUG
     dump("PLAIN", plaintext->data, plaintext->len);
     dump("CIPHER", ciphertext->data + salt_ofst, ciphertext->len);
 #endif
@@ -793,7 +780,7 @@ aead_decrypt(buffer_t *ciphertext, cipher_ctx_t *cipher_ctx, size_t capacity)
     }
     plaintext->len = plen;
 
-#ifdef DEBUG
+#ifdef FS_DEBUG
     dump("PLAIN", plaintext->data, plaintext->len);
     dump("CIPHER", ciphertext->data + salt_len, ciphertext->len - salt_len);
 #endif
