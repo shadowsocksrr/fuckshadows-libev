@@ -484,7 +484,6 @@ aead_encrypt_all(buffer_t *plaintext, cipher_t *cipher, size_t capacity)
 {
     cipher_ctx_t cipher_ctx;
     aead_ctx_init(cipher, &cipher_ctx, 1);
-    aead_cipher_ctx_udp_set_key(&cipher_ctx, 1);
 
     size_t salt_len = cipher->key_len;
     size_t tag_len  = cipher->tag_len;
@@ -498,7 +497,7 @@ aead_encrypt_all(buffer_t *plaintext, cipher_t *cipher, size_t capacity)
     /* copy salt to first pos */
     memcpy(ciphertext->data, cipher_ctx.salt, salt_len);
 
-    aead_cipher_ctx_set_subkey(&cipher_ctx, 1);
+    aead_cipher_ctx_udp_set_key(&cipher_ctx, 1);
 
     size_t clen = ciphertext->len;
     err = aead_cipher_encrypt(&cipher_ctx,
@@ -545,7 +544,6 @@ aead_decrypt_all(buffer_t *ciphertext, cipher_t *cipher, size_t capacity)
 
     cipher_ctx_t cipher_ctx;
     aead_ctx_init(cipher, &cipher_ctx, 0);
-    aead_cipher_ctx_udp_set_key(&cipher_ctx, 0);
 
     static buffer_t tmp = { 0, 0, 0, NULL };
     brealloc(&tmp, ciphertext->len, capacity);
@@ -556,7 +554,7 @@ aead_decrypt_all(buffer_t *ciphertext, cipher_t *cipher, size_t capacity)
     uint8_t *salt = cipher_ctx.salt;
     memcpy(salt, ciphertext->data, salt_len);
 
-    aead_cipher_ctx_set_subkey(&cipher_ctx, 0);
+    aead_cipher_ctx_udp_set_key(&cipher_ctx, 0);
 
     size_t plen = plaintext->len;
     err = aead_cipher_decrypt(&cipher_ctx,
