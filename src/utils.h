@@ -184,6 +184,19 @@ ss_malloc(size_t size)
 }
 
 inline void *
+ss_align(size_t size)
+{
+    int err;
+    void *tmp;
+    err = posix_memalign(&tmp, sizeof(void *), size);
+    if (err) {
+        return ss_malloc(size);
+    } else {
+        return tmp;
+    }
+}
+
+inline void *
 ss_realloc(void *ptr, size_t new_size)
 {
     void *new = realloc(ptr, new_size);

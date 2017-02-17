@@ -26,13 +26,18 @@ if !BUILD_WINCOMPAT
 bin_PROGRAMS += fs-server fs-manager
 endif
 
+bloom_src = MurmurHash2.c \
+            bloom.c
+
 sni_src = http.c \
           tls.c \
           rule.c
 
 crypto_src = crypto.c \
              aead.c \
-             stream.c
+             stream.c \
+             $(bloom_src) \
+             ppbloom.c
 
 fs_local_SOURCES = utils.c \
                    jconf.c \
