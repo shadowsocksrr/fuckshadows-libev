@@ -109,7 +109,11 @@ crypto_init(const char *password, const char *method)
     }
 
     // Initialize IV or salt bloom filter
+#ifdef MODULE_REMOTE
     ppbloom_init(1000000, 0.00001);
+#else
+    ppbloom_init(100000,  0.0000001);
+#endif
 
     if (method != NULL) {
         for (i = 0; i < STREAM_CIPHER_NUM; i++)
