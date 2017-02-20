@@ -540,7 +540,7 @@ aead_decrypt_all(buffer_t *ciphertext, cipher_t *cipher, size_t capacity)
     memcpy(salt, ciphertext->data, salt_len);
 
     if (ppbloom_check((void *)salt, salt_len) == 1) {
-        LOGE("crypto: AEAD: repeat salt detected");
+        LOGE("[udp] crypto: AEAD: repeat salt detected");
         return CRYPTO_ERROR;
     }
 

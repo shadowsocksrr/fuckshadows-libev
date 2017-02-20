@@ -476,7 +476,7 @@ stream_decrypt_all(buffer_t *ciphertext, cipher_t *cipher, size_t capacity)
     memcpy(nonce, ciphertext->data, nonce_len);
 
     if (ppbloom_check((void *)nonce, nonce_len) == 1) {
-        LOGE("crypto: stream: repeat IV detected");
+        LOGE("[udp] crypto: stream: repeat IV detected");
         return CRYPTO_ERROR;
     }
 
