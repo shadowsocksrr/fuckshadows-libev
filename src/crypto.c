@@ -109,10 +109,16 @@ crypto_init(const char *password, const char *method)
     }
 
     // Initialize IV or salt bloom filter
+#ifdef ANDROID
+    ppbloom_init(FS_BF_ENTRIES__ANDROID, FS_BF_ERR_RATE__ANDROID);
+#else /* !ANDROID */
+
 #ifdef MODULE_REMOTE
-    ppbloom_init(1000000, 0.00001);
-#else
-    ppbloom_init(100000,  0.0000001);
+    ppbloom_init(FS_BF_ENTRIES__SERVER, FS_BF_ERR_RATE__SERVER);
+#else /* !ANDROID && !MODULE_REMOTE */
+    ppbloom_init(FS_BF_ENTRIES__CLIENT, FS_BF_ERR_RATE__CLIENT);
+#endif
+
 #endif
 
     if (method != NULL) {

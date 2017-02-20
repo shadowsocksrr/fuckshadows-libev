@@ -77,6 +77,31 @@ typedef mbedtls_md_info_t digest_type_t;
 
 #define AEAD_SUBKEY_SALT_BYTES crypto_generichash_blake2b_SALTBYTES
 
+/* bloom filter parameters: number of entries and error rate */
+#ifndef FS_BF_ENTRIES__SERVER
+#define FS_BF_ENTRIES__SERVER 1e6
+#endif
+
+#ifndef FS_BF_ERR_RATE__SERVER
+#define FS_BF_ERR_RATE__SERVER 1e-6
+#endif
+
+#ifndef FS_BF_ENTRIES__CLIENT
+#define FS_BF_ENTRIES__CLIENT 1e4
+#endif
+
+#ifndef FS_BF_ERR_RATE__CLIENT
+#define FS_BF_ERR_RATE__CLIENT 1e-15
+#endif
+
+#ifndef FS_BF_ENTRIES__ANDROID
+#define FS_BF_ENTRIES__ANDROID 1e4
+#endif
+
+#ifndef FS_BF_ERR_RATE__ANDROID
+#define FS_BF_ERR_RATE__ANDROID 1e-10
+#endif
+
 typedef struct buffer {
     size_t idx;
     size_t len;
