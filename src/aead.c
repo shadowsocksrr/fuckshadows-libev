@@ -24,14 +24,15 @@
 #include "config.h"
 #endif
 
-#include <mbedtls/version.h>
-#define CIPHER_UNSUPPORTED "unsupported"
 #include <time.h>
 #include <stdio.h>
 #include <assert.h>
 
 #include <sodium.h>
 #include <arpa/inet.h>
+
+#include <mbedtls/version.h>
+#define CIPHER_UNSUPPORTED "unsupported"
 
 #include "ppbloom.h"
 #include "aead.h"

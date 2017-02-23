@@ -23,8 +23,8 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-#ifndef HTTP_H
-#define HTTP_H
+#ifndef _HTTP_H
+#define _HTTP_H
 
 #include <stdio.h>
 #include "protocol.h"

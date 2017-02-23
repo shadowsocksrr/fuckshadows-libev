@@ -20,8 +20,8 @@
  * <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _LOCAL_H
-#define _LOCAL_H
+#ifndef _REDIR_H
+#define _REDIR_H
 
 #include <ev.h>
 #include "crypto.h"
@@ -75,4 +75,4 @@ typedef struct remote {
     uint32_t counter;
 } remote_t;
 
-#endif // _LOCAL_H
+#endif // _REDIR_H

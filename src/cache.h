@@ -25,8 +25,8 @@
  * License:  This is licensed under the same terms as uthash itself
  */
 
-#ifndef _CACHE_
-#define _CACHE_
+#ifndef _CACHE_H
+#define _CACHE_H
 
 #include "uthash.h"
 #include "ev.h"
