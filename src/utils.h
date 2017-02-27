@@ -20,23 +20,12 @@
  * <http://www.gnu.org/licenses/>.
  */
 
-#if defined(USE_CRYPTO_OPENSSL)
-
-#include <openssl/opensslv.h>
-#define USING_CRYPTO OPENSSL_VERSION_TEXT
-
-#elif defined(USE_CRYPTO_POLARSSL)
-#include <polarssl/version.h>
-#define USING_CRYPTO POLARSSL_VERSION_STRING_FULL
-
-#elif defined(USE_CRYPTO_MBEDTLS)
-#include <mbedtls/version.h>
-#define USING_CRYPTO MBEDTLS_VERSION_STRING_FULL
-
-#endif
-
 #ifndef _UTILS_H
 #define _UTILS_H
+
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
 
 #include <stddef.h>
 #include <stdlib.h>
@@ -45,6 +34,14 @@
 
 #define PORTSTRLEN 16
 #define SS_ADDRSTRLEN (INET6_ADDRSTRLEN + PORTSTRLEN + 1)
+
+#if defined(USE_CRYPTO_OPENSSL)
+#include <openssl/opensslv.h>
+#define USING_CRYPTO OPENSSL_VERSION_TEXT
+#elif defined(USE_CRYPTO_MBEDTLS)
+#include <mbedtls/version.h>
+#define USING_CRYPTO MBEDTLS_VERSION_STRING_FULL
+#endif
 
 #ifdef ANDROID
 
@@ -188,7 +185,11 @@ ss_align(size_t size)
 {
     int err;
     void *tmp;
+#ifdef HAVE_POSIX_MEMALIGN
     err = posix_memalign(&tmp, sizeof(void *), size);
+#else
+    err = -1;
+#endif
     if (err) {
         return ss_malloc(size);
     } else {
