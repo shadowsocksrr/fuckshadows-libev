@@ -880,15 +880,15 @@ main(int argc, char **argv)
 
     jconf_t *conf = NULL;
 
-    int option_index                    = 0;
     static struct option long_options[] = {
-        { "fast-open",       no_argument,       0, 0 },
-        { "acl",             required_argument, 0, 0 },
-        { "manager-address", required_argument, 0, 0 },
-        { "executable",      required_argument, 0, 0 },
-        { "mtu",             required_argument, 0, 0 },
-        { "help",            no_argument,       0, 0 },
-        {                 0,                 0, 0, 0 }
+        { "fast-open",       no_argument,       NULL, GETOPT_VAL_FAST_OPEN       },
+        { "acl",             required_argument, NULL, GETOPT_VAL_ACL             },
+        { "manager-address", required_argument, NULL, GETOPT_VAL_MANAGER_ADDRESS },
+        { "executable",      required_argument, NULL, GETOPT_VAL_EXECUTABLE      },
+        { "mtu",             required_argument, NULL, GETOPT_VAL_MTU             },
+        { "password",        required_argument, NULL, GETOPT_VAL_PASSWORD        },
+        { "help",            no_argument,       NULL, GETOPT_VAL_HELP            },
+        { NULL,                              0, NULL,                          0 }
     };
 
     opterr = 0;
@@ -896,29 +896,29 @@ main(int argc, char **argv)
     USE_TTY();
 
     while ((c = getopt_long(argc, argv, "f:s:l:k:t:m:c:i:d:a:n:6huUv",
-                            long_options, &option_index)) != -1)
+                            long_options, NULL)) != -1)
         switch (c) {
-        case 0:
-            if (option_index == 0) {
-                fast_open = 1;
-            } else if (option_index == 1) {
-                acl = optarg;
-            } else if (option_index == 2) {
-                manager_address = optarg;
-            } else if (option_index == 3) {
-                executable = optarg;
-            } else if (option_index == 4) {
-                mtu = atoi(optarg);
-            } else if (option_index == 5) {
-                usage();
-                exit(EXIT_SUCCESS);
-            }
+        case GETOPT_VAL_FAST_OPEN:
+            fast_open = 1;
+            break;
+        case GETOPT_VAL_ACL:
+            acl = optarg;
+            break;
+        case GETOPT_VAL_MANAGER_ADDRESS:
+            manager_address = optarg;
+            break;
+        case GETOPT_VAL_EXECUTABLE:
+            executable = optarg;
+            break;
+        case GETOPT_VAL_MTU:
+            mtu = atoi(optarg);
             break;
         case 's':
             if (server_num < MAX_REMOTE_NUM) {
                 server_host[server_num++] = optarg;
             }
             break;
+        case GETOPT_VAL_PASSWORD:
         case 'k':
             password = optarg;
             break;
@@ -958,6 +958,7 @@ main(int argc, char **argv)
         case 'v':
             verbose = 1;
             break;
+        case GETOPT_VAL_HELP:
         case 'h':
             usage();
             exit(EXIT_SUCCESS);

@@ -459,7 +459,7 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
             server->stage = STAGE_HANDSHAKE;
 
             if (buf->data[0] == 0x05 && method_len < (int)(buf->len)) {
-                memmove(buf->data, buf->data + method_len , buf->len - method_len);
+                memmove(buf->data, buf->data + method_len, buf->len - method_len);
                 buf->len -= method_len;
                 continue;
             }
@@ -468,7 +468,7 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
             return;
         } else if (server->stage == STAGE_HANDSHAKE || server->stage == STAGE_PARSE) {
             struct socks5_request *request = (struct socks5_request *)buf->data;
-            size_t request_len = sizeof(struct socks5_request);
+            size_t request_len             = sizeof(struct socks5_request);
             struct sockaddr_in sock_addr;
             memset(&sock_addr, 0, sizeof(sock_addr));
 
@@ -1198,14 +1198,14 @@ main(int argc, char **argv)
     ss_addr_t remote_addr[MAX_REMOTE_NUM];
     char *remote_port = NULL;
 
-    int option_index                    = 0;
     static struct option long_options[] = {
-        { "fast-open", no_argument,       0, 0 },
-        { "acl",       required_argument, 0, 0 },
-        { "mtu",       required_argument, 0, 0 },
-        { "mptcp",     no_argument,       0, 0 },
-        { "help",      no_argument,       0, 0 },
-        {           0,                 0, 0, 0 }
+        { "fast-open", no_argument,       NULL, GETOPT_VAL_FAST_OPEN },
+        { "acl",       required_argument, NULL, GETOPT_VAL_ACL       },
+        { "mtu",       required_argument, NULL, GETOPT_VAL_MTU       },
+        { "mptcp",     no_argument,       NULL, GETOPT_VAL_MPTCP     },
+        { "password",  required_argument, NULL, GETOPT_VAL_PASSWORD  },
+        { "help",      no_argument,       NULL, GETOPT_VAL_HELP      },
+        { NULL,                        0, NULL,                    0 }
     };
 
     opterr = 0;
@@ -1214,28 +1214,26 @@ main(int argc, char **argv)
 
 #ifdef ANDROID
     while ((c = getopt_long(argc, argv, "f:s:p:l:k:t:m:i:c:b:a:n:huUvV6",
-                            long_options, &option_index)) != -1) {
+                            long_options, NULL)) != -1) {
 #else
     while ((c = getopt_long(argc, argv, "f:s:p:l:k:t:m:i:c:b:a:n:huUv6",
-                            long_options, &option_index)) != -1) {
+                            long_options, NULL)) != -1) {
 #endif
         switch (c) {
-        case 0:
-            if (option_index == 0) {
-                fast_open = 1;
-            } else if (option_index == 1) {
-                LOGI("initializing acl...");
-                acl = !init_acl(optarg);
-            } else if (option_index == 2) {
-                mtu = atoi(optarg);
-                LOGI("set MTU to %d", mtu);
-            } else if (option_index == 3) {
-                mptcp = 1;
-                LOGI("enable multipath TCP");
-            } else if (option_index == 4) {
-                usage();
-                exit(EXIT_SUCCESS);
-            }
+        case GETOPT_VAL_FAST_OPEN:
+            fast_open = 1;
+            break;
+        case GETOPT_VAL_ACL:
+            LOGI("initializing acl...");
+            acl = !init_acl(optarg);
+            break;
+        case GETOPT_VAL_MTU:
+            mtu = atoi(optarg);
+            LOGI("set MTU to %d", mtu);
+            break;
+        case GETOPT_VAL_MPTCP:
+            mptcp = 1;
+            LOGI("enable multipath TCP");
             break;
         case 's':
             if (remote_num < MAX_REMOTE_NUM) {
@@ -1249,6 +1247,7 @@ main(int argc, char **argv)
         case 'l':
             local_port = optarg;
             break;
+        case GETOPT_VAL_PASSWORD:
         case 'k':
             password = optarg;
             break;
@@ -1288,6 +1287,7 @@ main(int argc, char **argv)
         case 'v':
             verbose = 1;
             break;
+        case GETOPT_VAL_HELP:
         case 'h':
             usage();
             exit(EXIT_SUCCESS);

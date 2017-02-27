@@ -183,4 +183,5 @@ dump(char *tag, char *text, int len)
         printf("0x%02x ", (uint8_t)text[i]);
     printf("\n");
 }
+
 #endif
