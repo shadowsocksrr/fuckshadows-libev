@@ -44,7 +44,8 @@ typedef struct server_ctx {
 
 typedef struct server {
     int fd;
-
+    char *hostname;
+    size_t hostname_len;
     buffer_t *buf;
 
     cipher_ctx_t *e_ctx;
@@ -53,10 +54,8 @@ typedef struct server {
     struct server_ctx *send_ctx;
     struct remote *remote;
 
-    char *hostname;
-    size_t hostname_len;
-
     struct sockaddr_storage destaddr;
+    ev_timer delayed_connect_watcher;
 } server_t;
 
 typedef struct remote_ctx {
@@ -68,11 +67,12 @@ typedef struct remote_ctx {
 
 typedef struct remote {
     int fd;
+    uint32_t counter;
     buffer_t *buf;
     struct remote_ctx *recv_ctx;
     struct remote_ctx *send_ctx;
     struct server *server;
-    uint32_t counter;
+    struct sockaddr *addr;
 } remote_t;
 
 #endif // _REDIR_H
