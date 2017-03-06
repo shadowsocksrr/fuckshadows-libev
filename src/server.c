@@ -1522,7 +1522,7 @@ main(int argc, char **argv)
     }
 
     if (server_num == 0) {
-        server_host[server_num++] = NULL;
+        server_host[server_num++] = "0.0.0.0";
     }
 
     if (server_num == 0 || server_port == NULL || password == NULL) {
@@ -1640,7 +1640,7 @@ main(int argc, char **argv)
             if (host && strcmp(host, ":") > 0)
                 LOGI("tcp server listening at [%s]:%s", host, server_port);
             else
-                LOGI("tcp server listening at %s:%s", host ? host : "*", server_port);
+                LOGI("tcp server listening at %s:%s", host ? host : "0.0.0.0", server_port);
         }
     }
 
@@ -1653,7 +1653,7 @@ main(int argc, char **argv)
             if (host && strcmp(host, ":") > 0)
                 LOGI("udp server listening at [%s]:%s", host, port);
             else
-                LOGI("udp server listening at %s:%s", host ? host : "*", port);
+                LOGI("udp server listening at %s:%s", host ? host : "0.0.0.0", port);
         }
     }
 
