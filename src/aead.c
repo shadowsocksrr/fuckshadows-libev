@@ -584,12 +584,13 @@ aead_chunk_encrypt(cipher_ctx_t *ctx, uint8_t *p, uint8_t *c, uint8_t *n,
     size_t nlen = ctx->cipher->nonce_len;
     size_t tlen = ctx->cipher->tag_len;
 
-    assert(plen + tlen < CHUNK_SIZE_MASK);
+    assert(plen <= CHUNK_SIZE_MASK);
 
     int err;
     size_t clen;
     uint8_t len_buf[CHUNK_SIZE_LEN];
-    uint16_t t = htons(plen & CHUNK_SIZE_MASK);
+    uint16_t real_plen = min(plen, CHUNK_SIZE_MASK);
+    uint16_t t         = htons(real_plen);
     memcpy(len_buf, &t, CHUNK_SIZE_LEN);
 
     clen = CHUNK_SIZE_LEN + tlen;
@@ -602,13 +603,13 @@ aead_chunk_encrypt(cipher_ctx_t *ctx, uint8_t *p, uint8_t *c, uint8_t *n,
 
     sodium_increment(n, nlen);
 
-    clen = plen + tlen;
-    err  = aead_cipher_encrypt(ctx, c + CHUNK_SIZE_LEN + tlen, &clen, p, plen,
+    clen = real_plen + tlen;
+    err  = aead_cipher_encrypt(ctx, c + CHUNK_SIZE_LEN + tlen, &clen, p, real_plen,
                                NULL, 0, n, ctx->subkey);
     if (err)
         return CRYPTO_ERROR;
 
-    assert(clen == plen + tlen);
+    assert(clen == real_plen + tlen);
 
     sodium_increment(n, nlen);
 
@@ -675,24 +676,31 @@ aead_chunk_decrypt(cipher_ctx_t *ctx, uint8_t *p, uint8_t *c, uint8_t *n,
 {
     int err;
     size_t mlen;
+    size_t dec_plen;
     size_t nlen = ctx->cipher->nonce_len;
     size_t tlen = ctx->cipher->tag_len;
 
     if (*clen <= 2 * tlen + CHUNK_SIZE_LEN)
         return CRYPTO_NEED_MORE;
 
-    uint8_t len_buf[2];
-    err = aead_cipher_decrypt(ctx, len_buf, plen, c, CHUNK_SIZE_LEN + tlen,
+    uint8_t len_buf[CHUNK_SIZE_LEN];
+    err = aead_cipher_decrypt(ctx, len_buf, &dec_plen, c, CHUNK_SIZE_LEN + tlen,
                               NULL, 0, n, ctx->subkey);
     if (err)
         return CRYPTO_ERROR;
-    assert(*plen == CHUNK_SIZE_LEN);
+    assert(dec_plen == CHUNK_SIZE_LEN);
 
     mlen = ntohs(*(uint16_t *)len_buf);
-    mlen = mlen & CHUNK_SIZE_MASK;
 
-    if (mlen == 0)
+    if (mlen > CHUNK_SIZE_MASK) {
+        LOGE("aead_chunk_decrypt: chunk too big");
         return CRYPTO_ERROR;
+    }
+
+    if (mlen == 0) {
+        LOGE("aead_chunk_decrypt: mlen is 0");
+        return CRYPTO_ERROR;
+    }
 
     size_t chunk_len = 2 * tlen + CHUNK_SIZE_LEN + mlen;
 
@@ -712,7 +720,7 @@ aead_chunk_decrypt(cipher_ctx_t *ctx, uint8_t *p, uint8_t *c, uint8_t *n,
     if (*clen > chunk_len)
         memmove(c, c + chunk_len, *clen - chunk_len);
 
-    *clen = *clen - chunk_len;
+    *clen -= chunk_len;
 
     return CRYPTO_OK;
 }
@@ -776,10 +784,12 @@ aead_decrypt(buffer_t *ciphertext, cipher_ctx_t *cipher_ctx, size_t capacity)
         if (err == CRYPTO_ERROR) {
             return err;
         } else if (err == CRYPTO_NEED_MORE) {
-            if (plen == 0)
+            if (plen == 0) {
+                LOGE("aead_decrypt: need more but plen is 0");
                 return err;
-            else
+            } else {
                 break;
+            }
         }
         cipher_ctx->chunk->len = chunk_clen;
         plen                  += chunk_plen;
