@@ -785,7 +785,6 @@ aead_decrypt(buffer_t *ciphertext, cipher_ctx_t *cipher_ctx, size_t capacity)
             return err;
         } else if (err == CRYPTO_NEED_MORE) {
             if (plen == 0) {
-                LOGE("aead_decrypt: need more but plen is 0");
                 return err;
             } else {
                 break;
