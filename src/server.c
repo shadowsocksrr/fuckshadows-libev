@@ -316,8 +316,8 @@ int
 create_and_bind(const char *host, const char *port, int mptcp)
 {
     struct addrinfo hints;
-    struct addrinfo *result, *rp, *ipv4v6bindall;
-    int s, listen_sock;
+    struct addrinfo *result = NULL, *rp = NULL, *ipv4v6bindall = NULL;
+    int s = -1, listen_sock = -1;
 
     memset(&hints, 0, sizeof(struct addrinfo));
     hints.ai_family   = AF_UNSPEC;               /* Return IPv4 and IPv6 choices */
@@ -337,6 +337,11 @@ create_and_bind(const char *host, const char *port, int mptcp)
 
     if (s != 0) {
         LOGE("getaddrinfo: %s", gai_strerror(s));
+        return -1;
+    }
+
+    if (result == NULL) {
+        LOGE("Could not bind");
         return -1;
     }
 
@@ -405,11 +410,7 @@ create_and_bind(const char *host, const char *port, int mptcp)
         }
 
         close(listen_sock);
-    }
-
-    if (rp == NULL) {
-        LOGE("Could not bind");
-        return -1;
+        listen_sock = -1;
     }
 
     freeaddrinfo(result);
