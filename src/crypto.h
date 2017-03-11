@@ -86,6 +86,7 @@ typedef mbedtls_md_info_t digest_type_t;
 #define FS_BF_ERR_RATE__SERVER 1e-6
 #endif
 
+/*
 #ifndef FS_BF_ENTRIES__CLIENT
 #define FS_BF_ENTRIES__CLIENT 1e4
 #endif
@@ -101,6 +102,7 @@ typedef mbedtls_md_info_t digest_type_t;
 #ifndef FS_BF_ERR_RATE__ANDROID
 #define FS_BF_ERR_RATE__ANDROID 1e-10
 #endif
+*/
 
 typedef struct buffer {
     size_t idx;

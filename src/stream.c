@@ -475,10 +475,12 @@ stream_decrypt_all(buffer_t *ciphertext, cipher_t *cipher, size_t capacity)
     uint8_t *nonce = cipher_ctx.nonce;
     memcpy(nonce, ciphertext->data, nonce_len);
 
+#ifdef MODULE_REMOTE
     if (ppbloom_check((void *)nonce, nonce_len) == 1) {
         LOGE("[udp] crypto: stream: repeat IV detected");
         return CRYPTO_ERROR;
     }
+#endif
 
     cipher_ctx_set_nonce(&cipher_ctx, nonce, nonce_len, 0);
 
@@ -504,7 +506,9 @@ stream_decrypt_all(buffer_t *ciphertext, cipher_t *cipher, size_t capacity)
     dump("NONCE", ciphertext->data, nonce_len);
 #endif
 
+#ifdef MODULE_REMOTE
     ppbloom_add((void *)nonce, nonce_len);
+#endif
 
     brealloc(ciphertext, plaintext->len, capacity);
     memcpy(ciphertext->data, plaintext->data, plaintext->len);
@@ -560,14 +564,18 @@ stream_decrypt(buffer_t *ciphertext, cipher_ctx_t *cipher_ctx, size_t capacity)
         cipher_ctx->init    = 1;
 
         if (cipher->method >= RC4_MD5) {
+#ifdef MODULE_REMOTE
             if (ppbloom_check((void *)nonce, nonce_len) == 1) {
                 LOGE("crypto: stream: repeat nonce detected");
                 return CRYPTO_ERROR;
             }
+#endif
         }
     } else if (cipher_ctx->init == 1) {
         if (cipher->method >= RC4_MD5) {
+#ifdef MODULE_REMOTE
             ppbloom_add((void *)cipher_ctx->nonce, cipher->nonce_len);
+#endif
             cipher_ctx->init = 2;
         }
     }

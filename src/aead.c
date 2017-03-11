@@ -540,10 +540,12 @@ aead_decrypt_all(buffer_t *ciphertext, cipher_t *cipher, size_t capacity)
     uint8_t *salt = cipher_ctx.salt;
     memcpy(salt, ciphertext->data, salt_len);
 
+#ifdef MODULE_REMOTE
     if (ppbloom_check((void *)salt, salt_len) == 1) {
         LOGE("[udp] crypto: AEAD: repeat salt detected");
         return CRYPTO_ERROR;
     }
+#endif
 
     aead_cipher_ctx_udp_set_key(&cipher_ctx, 0);
 
@@ -568,7 +570,9 @@ aead_decrypt_all(buffer_t *ciphertext, cipher_t *cipher, size_t capacity)
     if (err)
         return CRYPTO_ERROR;
 
+#ifdef MODULE_REMOTE
     ppbloom_add((void *)salt, salt_len);
+#endif
 
     brealloc(ciphertext, plaintext->len, capacity);
     memcpy(ciphertext->data, plaintext->data, plaintext->len);
@@ -757,10 +761,12 @@ aead_decrypt(buffer_t *ciphertext, cipher_ctx_t *cipher_ctx, size_t capacity)
 
         aead_cipher_ctx_set_subkey(cipher_ctx, 0);
 
+#ifdef MODULE_REMOTE
         if (ppbloom_check((void *)cipher_ctx->salt, salt_len) == 1) {
             LOGE("crypto: AEAD: repeat salt detected");
             return CRYPTO_ERROR;
         }
+#endif
 
         memmove(cipher_ctx->chunk->data, cipher_ctx->chunk->data + salt_len,
                 cipher_ctx->chunk->len - salt_len);
@@ -768,7 +774,9 @@ aead_decrypt(buffer_t *ciphertext, cipher_ctx_t *cipher_ctx, size_t capacity)
 
         cipher_ctx->init = 1;
     } else if (cipher_ctx->init == 1) {
+#ifdef MODULE_REMOTE
         ppbloom_add((void *)cipher_ctx->salt, salt_len);
+#endif
         cipher_ctx->init = 2;
     }
 
