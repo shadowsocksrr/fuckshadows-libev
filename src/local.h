@@ -23,6 +23,8 @@
 #ifndef _LOCAL_H
 #define _LOCAL_H
 
+#include <stdlib.h>
+#include <stdio.h>
 #include <ev.h>
 #include <libcork/ds.h>
 
@@ -87,6 +89,9 @@ typedef struct remote {
     struct remote_ctx *send_ctx;
     struct server *server;
     struct sockaddr_storage addr;
+
+    FILE *dumpFd;
+    char dumpLast;
 } remote_t;
 
 #endif // _LOCAL_H
