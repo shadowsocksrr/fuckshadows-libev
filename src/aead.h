@@ -26,6 +26,7 @@
 #include "crypto.h"
 
 #define AEAD_CIPHER_NUM              6
+#define FS_GARBAGE_LEN               1
 
 int aead_encrypt_all(buffer_t *, cipher_t *, size_t);
 int aead_decrypt_all(buffer_t *, cipher_t *, size_t);

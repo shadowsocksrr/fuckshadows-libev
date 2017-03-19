@@ -611,6 +611,31 @@ aead_encrypt(buffer_t *plaintext, cipher_ctx_t *cipher_ctx, size_t capacity)
         return CRYPTO_OK;
     }
 
+    // prepend garbage data to plain text
+    size_t plen = plaintext->len;
+    uint8_t garbageLen;
+    if (plen > 1300) {
+        garbageLen = 0;
+    } else if (plen > 1200) {
+        rand_bytes(&garbageLen, sizeof garbageLen);
+        garbageLen &= 0x1F;
+    } else if (plen > 900) {
+        rand_bytes(&garbageLen, sizeof garbageLen);
+        garbageLen &= 0x2F;
+    } else if (plen > 400) {
+        rand_bytes(&garbageLen, sizeof garbageLen);
+        garbageLen &= 0x3F;
+    } else {
+        rand_bytes(&garbageLen, sizeof garbageLen);
+    }
+    static buffer_t tmp2 = { 0, 0, 0, NULL };
+    buffer_t *garbage    = &tmp2;
+    brealloc(garbage, garbageLen + FS_GARBAGE_LEN, capacity);
+    garbage->len = garbageLen + FS_GARBAGE_LEN;
+    memcpy((uint8_t *)garbage->data, &garbageLen, FS_GARBAGE_LEN);
+    rand_bytes((uint8_t *)garbage->data + FS_GARBAGE_LEN, garbageLen);
+    bprepend(plaintext, garbage, capacity);
+
     static buffer_t tmp = { 0, 0, 0, NULL };
     buffer_t *ciphertext;
 
@@ -698,6 +723,11 @@ aead_chunk_decrypt(cipher_ctx_t *ctx, uint8_t *p, uint8_t *c, uint8_t *n,
     if (err)
         return CRYPTO_ERROR;
     assert(*plen == mlen);
+
+    // handle garbage
+    uint8_t garbageLen = *(uint8_t *)p;
+    memmove(p, p + FS_GARBAGE_LEN + garbageLen, mlen - FS_GARBAGE_LEN - garbageLen);
+    *plen -= (FS_GARBAGE_LEN + garbageLen);
 
     sodium_increment(n, nlen);
 
