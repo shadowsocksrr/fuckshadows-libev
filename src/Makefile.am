@@ -1,6 +1,11 @@
 VERSION_INFO = 2:0:0
 
-AM_CFLAGS = -g -O2 -Wall -Werror -Wno-deprecated-declarations -fno-strict-aliasing -std=gnu99 -D_GNU_SOURCE
+if ENABLE_OPTIMIZATION
+AM_CFLAGS = -O3 -pipe -ffast-math -ftree-vectorize -Wall -Werror -fno-strict-aliasing -std=gnu99 -D_GNU_SOURCE
+else
+AM_CFLAGS = -Os -Wall -Werror -fno-strict-aliasing -std=gnu99 -D_GNU_SOURCE
+endif
+
 AM_CFLAGS += $(PTHREAD_CFLAGS)
 if !USE_SYSTEM_SHARED_LIB
 AM_CFLAGS += -I$(top_srcdir)/libev
