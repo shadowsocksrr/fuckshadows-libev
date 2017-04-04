@@ -51,8 +51,12 @@
 #define CHACHA20POLY1305IETF    4
 #define XCHACHA20POLY1305IETF   5
 
-#define CHUNK_SIZE_LEN          2
-#define CHUNK_SIZE_MASK         0x3FFF
+#define FS_GARBAGE_LEN               1
+#define FS_MAX_GARBAGE               (255 + FS_GARBAGE_LEN)
+
+#define CHUNK_SIZE_LEN               2
+#define CHUNK_SIZE_MASK              0x3FFF
+#define CHUNK_MAX_SIZE_WITH_GARBAGE   (CHUNK_SIZE_MASK - FS_MAX_GARBAGE)
 
 /*
  * Designed by wongsyrone with help from breakwa11 and Noisyfox
@@ -614,6 +618,10 @@ aead_encrypt(buffer_t *plaintext, cipher_ctx_t *cipher_ctx, size_t capacity)
     // prepend garbage data to plain text
     size_t plen = plaintext->len;
     uint8_t garbageLen;
+    if (plen > CHUNK_MAX_SIZE_WITH_GARBAGE) {
+        LOGE("plen is bigger than CHUNK_MAX_SIZE_WITH_GARBAGE, no space for garbage to construct max chunk");
+        return CRYPTO_ERROR;
+    }
     if (plen > 1300) {
         garbageLen = 0;
     } else if (plen > 1200) {
