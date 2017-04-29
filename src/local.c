@@ -677,11 +677,40 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
             if (acl) {
                 int host_match = acl_match_host(host);
                 int bypass     = 0;
+                int resolved   = 0;
+                struct sockaddr_storage storage;
+                memset(&storage, 0, sizeof(struct sockaddr_storage));
+                int err;
+
                 if (host_match > 0)
                     bypass = 1;                 // bypass hostnames in black list
                 else if (host_match < 0)
                     bypass = 0;                 // proxy hostnames in white list
                 else {
+#ifndef ANDROID
+                    if (atyp == 3) {            // resolve domain so we can bypass domain with geoip
+                        err = get_sockaddr(host, port, &storage, 0, ipv6first);
+                        if (err != -1) {
+                            resolved = 1;
+                            switch (((struct sockaddr *)&storage)->sa_family) {
+                            case AF_INET:
+                            {
+                                struct sockaddr_in *addr_in = (struct sockaddr_in *)&storage;
+                                dns_ntop(AF_INET, &(addr_in->sin_addr), ip, INET_ADDRSTRLEN);
+                                break;
+                            }
+                            case AF_INET6:
+                            {
+                                struct sockaddr_in6 *addr_in6 = (struct sockaddr_in6 *)&storage;
+                                dns_ntop(AF_INET6, &(addr_in6->sin6_addr), ip, INET6_ADDRSTRLEN);
+                                break;
+                            }
+                            default:
+                                break;
+                            }
+                        }
+                    }
+#endif
                     int ip_match = acl_match_host(ip);
                     switch (get_acl_mode()) {
                     case BLACK_LIST:
@@ -705,11 +734,8 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
                         else if (atyp == 4)
                             LOGI("bypass [%s]:%s", ip, port);
                     }
-                    int err;
-                    struct sockaddr_storage storage;
-                    memset(&storage, 0, sizeof(struct sockaddr_storage));
 #ifndef ANDROID
-                    if (atyp == 3)
+                    if (atyp == 3 && resolved != 1)
                         err = get_sockaddr(host, port, &storage, 0, ipv6first);
                     else
 #endif
@@ -1060,7 +1086,7 @@ new_server(int fd)
     ev_io_init(&server->send_ctx->io, server_send_cb, fd, EV_WRITE);
 
     ev_timer_init(&server->delayed_connect_watcher,
-            delayed_connect_cb, 0.05, 0);
+                  delayed_connect_cb, 0.05, 0);
 
     cork_dllist_add(&connections, &server->entries);
 
@@ -1141,7 +1167,7 @@ create_remote(listen_ctx_t *listener,
         }
     } else if (listener->mptcp == 1) {
         int i = 0;
-        while((listener->mptcp = mptcp_enabled_values[i]) > 0) {
+        while ((listener->mptcp = mptcp_enabled_values[i]) > 0) {
             int err = setsockopt(remotefd, SOL_TCP, listener->mptcp, &opt, sizeof(opt));
             if (err != -1) {
                 break;
