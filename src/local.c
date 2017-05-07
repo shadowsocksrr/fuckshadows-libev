@@ -100,6 +100,7 @@ static int acl       = 0;
 static int mode      = TCP_ONLY;
 static int ipv6first = 0;
 static int fast_open = 0;
+static int udp_fd    = 0;
 
 static struct ev_signal sigint_watcher;
 static struct ev_signal sigterm_watcher;
@@ -499,7 +500,7 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
             if (request->cmd == 3) {
                 udp_assc = 1;
                 socklen_t addr_len = sizeof(sock_addr);
-                getsockname(server->fd, (struct sockaddr *)&sock_addr,
+                getsockname(udp_fd, (struct sockaddr *)&sock_addr,
                             &addr_len);
                 if (verbose) {
                     LOGI("udp assc request accepted");
@@ -1553,8 +1554,8 @@ main(int argc, char **argv)
             FATAL("failed to resolve the provided hostname");
         }
         struct sockaddr *addr = (struct sockaddr *)storage;
-        init_udprelay(local_addr, local_port, addr,
-                      get_sockaddr_len(addr), mtu, crypto, listen_ctx.timeout, iface);
+        udp_fd = init_udprelay(local_addr, local_port, addr,
+                               get_sockaddr_len(addr), mtu, crypto, listen_ctx.timeout, iface);
     }
 
 #ifdef HAVE_LAUNCHD
@@ -1704,8 +1705,8 @@ start_ss_local_server(profile_t profile)
     if (mode != TCP_ONLY) {
         LOGI("udprelay enabled");
         struct sockaddr *addr = (struct sockaddr *)(&storage);
-        init_udprelay(local_addr, local_port_str, addr,
-                      get_sockaddr_len(addr), mtu, crypto, timeout, NULL);
+        udp_fd = init_udprelay(local_addr, local_port_str, addr,
+                               get_sockaddr_len(addr), mtu, crypto, timeout, NULL);
     }
 
     if (strcmp(local_addr, ":") > 0)
