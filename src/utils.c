@@ -52,6 +52,44 @@ FILE *logfile;
 int use_syslog = 0;
 #endif
 
+void *
+ss_malloc(size_t size)
+{
+    void *tmp = malloc(size);
+    if (tmp == NULL)
+        exit(EXIT_FAILURE);
+    return tmp;
+}
+
+void *
+ss_align(size_t size)
+{
+    int err;
+    void *tmp = NULL;
+#ifdef HAVE_POSIX_MEMALIGN
+    err = posix_memalign(&tmp, sizeof(void *), size);
+#else
+    err = -1;
+#endif
+    if (err) {
+        return ss_malloc(size);
+    } else {
+        return tmp;
+    }
+}
+
+void *
+ss_realloc(void *ptr, size_t new_size)
+{
+    void *new = realloc(ptr, new_size);
+    if (new == NULL) {
+        free(ptr);
+        ptr = NULL;
+        exit(EXIT_FAILURE);
+    }
+    return new;
+}
+
 void
 ERROR(const char *s)
 {
