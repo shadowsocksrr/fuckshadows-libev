@@ -51,8 +51,8 @@ AC_ARG_WITH(
   [with_crypto_library="mbedtls"]
 )
 
-AC_ARG_ENABLE([optimization],
-  AS_HELP_STRING([--enable-optimization], [enable optimization]),
+AC_ARG_ENABLE([opt],
+  AS_HELP_STRING([--enable-opt], [enable optimization]),
   [disable_optimization=false],
   [disable_optimization=true])
 AM_CONDITIONAL([ENABLE_OPTIMIZATION], [test x$disable_optimization = xfalse])
