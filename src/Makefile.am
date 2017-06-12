@@ -31,7 +31,7 @@ if !BUILD_WINCOMPAT
 bin_PROGRAMS += fs-server fs-manager
 endif
 
-bloom_src = MurmurHash2.c \
+bloom_src = MurmurHash3.c \
             bloom.c
 
 sni_src = http.c \
