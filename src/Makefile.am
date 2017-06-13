@@ -32,7 +32,10 @@ bin_PROGRAMS += fs-server fs-manager
 endif
 
 bloom_src = MurmurHash3.c \
-            bloom.c
+            bloom.c \
+            bitmap.c \
+            spooky.c \
+            sbf.c
 
 sni_src = http.c \
           tls.c \
@@ -41,8 +44,7 @@ sni_src = http.c \
 crypto_src = crypto.c \
              aead.c \
              stream.c \
-             $(bloom_src) \
-             ppbloom.c
+             $(bloom_src)
 
 fs_local_SOURCES = utils.c \
                    jconf.c \

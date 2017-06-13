@@ -8,12 +8,13 @@
 //-----------------------------------------------------------------------------
 // Platform-specific functions and macros
 
+// GCC
 
 #include <stdint.h>
 
 //-----------------------------------------------------------------------------
 
-void MurmurHash3_x86_32  ( const void * key, int len, uint32_t seed, void * out );
+void MurmurHash3_x64_128 ( const void * key, int len, uint32_t seed, void * out );
 
 //-----------------------------------------------------------------------------
 

@@ -90,14 +90,6 @@ typedef mbedtls_md_info_t digest_type_t;
 #ifndef FS_BF_ERR_RATE__CLIENT
 #define FS_BF_ERR_RATE__CLIENT 1e-15
 #endif
-
-#ifndef FS_BF_ENTRIES__ANDROID
-#define FS_BF_ENTRIES__ANDROID 1e4
-#endif
-
-#ifndef FS_BF_ERR_RATE__ANDROID
-#define FS_BF_ERR_RATE__ANDROID 1e-10
-#endif
 */
 
 typedef struct buffer {
@@ -156,5 +148,11 @@ extern const char *supported_aead_ciphers[];
 #ifdef FS_DEBUG
 void dump(char *tag, char *text, int len);
 #endif
+
+
+int fs_sbf_init();
+int fs_sbf_add(const void *buffer, int len);
+int fs_sbf_check(const void *buffer, int len);
+int fs_sbf_close();
 
 #endif // _CRYPTO_H

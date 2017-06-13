@@ -39,7 +39,28 @@
 #include "stream.h"
 #include "aead.h"
 #include "utils.h"
-#include "ppbloom.h"
+#include "sbf.h"
+
+static bloom_sbf g_sbf;
+
+int fs_sbf_init() {
+    bloom_sbf_params params = SBF_DEFAULT_PARAMS;
+    params.initial_capacity = FS_BF_ENTRIES__SERVER;
+    params.fp_probability = FS_BF_ERR_RATE__SERVER;
+    return sbf_from_filters(&params, NULL, NULL, 0, NULL, &g_sbf);
+}
+
+int fs_sbf_add(const void *buffer, int len) {
+    return sbf_add(&g_sbf, buffer, len);
+}
+
+int fs_sbf_check(const void *buffer, int len) {
+    return sbf_contains(&g_sbf, buffer, len);
+}
+
+int fs_sbf_close() {
+    return sbf_close(&g_sbf);
+}
 
 int
 balloc(buffer_t *ptr, size_t capacity)
@@ -137,7 +158,8 @@ crypto_init(const char *password, const char *method)
 
     // Initialize IV or salt bloom filter
 #ifdef MODULE_REMOTE
-    ppbloom_init(FS_BF_ENTRIES__SERVER, FS_BF_ERR_RATE__SERVER);
+    if (fs_sbf_init() != 0)
+        FATAL("Failed to initialize sbf");
 #endif
 
     if (method != NULL) {

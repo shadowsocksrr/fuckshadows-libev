@@ -31,7 +31,7 @@
 
 #include <sodium.h>
 
-#include "ppbloom.h"
+#include "sbf.h"
 #include "stream.h"
 #include "utils.h"
 
@@ -476,9 +476,12 @@ stream_decrypt_all(buffer_t *ciphertext, cipher_t *cipher, size_t capacity)
     memcpy(nonce, ciphertext->data, nonce_len);
 
 #ifdef MODULE_REMOTE
-    if (ppbloom_check((void *)nonce, nonce_len) == 1) {
+    err = fs_sbf_check((void *)nonce, nonce_len);
+    if (err == 1) {
         LOGE("[udp] crypto: stream: repeat IV detected");
         return CRYPTO_ERROR;
+    } else if (err < 0) {
+        LOGE("[udp] crypto: stream: fail to check IV");
     }
 #endif
 
@@ -507,7 +510,8 @@ stream_decrypt_all(buffer_t *ciphertext, cipher_t *cipher, size_t capacity)
 #endif
 
 #ifdef MODULE_REMOTE
-    ppbloom_add((void *)nonce, nonce_len);
+    if (fs_sbf_add((void *)nonce, nonce_len) < 0)
+        LOGE("[udp] crypto: stream: fail to add IV");
 #endif
 
     brealloc(ciphertext, plaintext->len, capacity);
@@ -565,16 +569,20 @@ stream_decrypt(buffer_t *ciphertext, cipher_ctx_t *cipher_ctx, size_t capacity)
 
         if (cipher->method >= RC4_MD5) {
 #ifdef MODULE_REMOTE
-            if (ppbloom_check((void *)nonce, nonce_len) == 1) {
-                LOGE("crypto: stream: repeat nonce detected");
+            err = fs_sbf_check((void *)nonce, nonce_len);
+            if (err == 1) {
+                LOGE("crypto: stream: repeat IV detected");
                 return CRYPTO_ERROR;
+            } else if (err < 0) {
+                LOGE("crypto: stream: fail to check IV");
             }
 #endif
         }
     } else if (cipher_ctx->init == 1) {
         if (cipher->method >= RC4_MD5) {
 #ifdef MODULE_REMOTE
-            ppbloom_add((void *)cipher_ctx->nonce, cipher->nonce_len);
+            if (fs_sbf_add((void *)cipher_ctx->nonce, cipher->nonce_len) < 0)
+                LOGE("crypto: stream: fail to add IV");
 #endif
             cipher_ctx->init = 2;
         }

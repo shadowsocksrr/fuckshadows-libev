@@ -1688,6 +1688,12 @@ main(int argc, char **argv)
         LOGI("closed gracefully");
     }
 
+    // Close IV or salt Scalable Bloom Filter
+#ifdef MODULE_REMOTE
+    if (fs_sbf_close() != 0)
+        LOGE("Failed to close sbf");
+#endif
+
     // Free block list
     free_block_list();
 

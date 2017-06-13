@@ -34,7 +34,7 @@
 #include <mbedtls/version.h>
 #define CIPHER_UNSUPPORTED "unsupported"
 
-#include "ppbloom.h"
+#include "sbf.h"
 #include "aead.h"
 #include "utils.h"
 
@@ -525,9 +525,12 @@ aead_decrypt_all(buffer_t *ciphertext, cipher_t *cipher, size_t capacity)
     memcpy(salt, ciphertext->data, salt_len);
 
 #ifdef MODULE_REMOTE
-    if (ppbloom_check((void *)salt, salt_len) == 1) {
+    err = fs_sbf_check((void *)salt, salt_len);
+    if (err == 1) {
         LOGE("[udp] crypto: AEAD: repeat salt detected");
         return CRYPTO_ERROR;
+    } else if (err < 0) {
+        LOGE("[udp] crypto: AEAD: failed to check salt");
     }
 #endif
 
@@ -555,7 +558,8 @@ aead_decrypt_all(buffer_t *ciphertext, cipher_t *cipher, size_t capacity)
         return CRYPTO_ERROR;
 
 #ifdef MODULE_REMOTE
-    ppbloom_add((void *)salt, salt_len);
+    if (fs_sbf_add((void *)salt, salt_len) < 0)
+        LOGE("[udp] crypto: AEAD: failed to add salt");
 #endif
 
     brealloc(ciphertext, plaintext->len, capacity);
@@ -780,9 +784,12 @@ aead_decrypt(buffer_t *ciphertext, cipher_ctx_t *cipher_ctx, size_t capacity)
         aead_cipher_ctx_set_subkey(cipher_ctx, 0);
 
 #ifdef MODULE_REMOTE
-        if (ppbloom_check((void *)cipher_ctx->salt, salt_len) == 1) {
+        err = fs_sbf_check((void *)cipher_ctx->salt, salt_len);
+        if (err == 1) {
             LOGE("crypto: AEAD: repeat salt detected");
             return CRYPTO_ERROR;
+        } else if (err < 0) {
+            LOGE("crypto: AEAD: fail to check salt");
         }
 #endif
 
@@ -793,7 +800,8 @@ aead_decrypt(buffer_t *ciphertext, cipher_ctx_t *cipher_ctx, size_t capacity)
         cipher_ctx->init = 1;
     } else if (cipher_ctx->init == 1) {
 #ifdef MODULE_REMOTE
-        ppbloom_add((void *)cipher_ctx->salt, salt_len);
+        if (fs_sbf_add((void *)cipher_ctx->salt, salt_len) < 0)
+            LOGE("crypto: AEAD: fail to add salt");
 #endif
         cipher_ctx->init = 2;
     }
