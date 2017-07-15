@@ -1020,6 +1020,9 @@ main(int argc, char **argv)
         if (fast_open == 0) {
             fast_open = conf->fast_open;
         }
+        if (ipv6first == 0) {
+            ipv6first = conf->ipv6_first;
+        }
     }
 
     if (remote_num == 0 || remote_port == NULL ||
