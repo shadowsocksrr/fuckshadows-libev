@@ -483,6 +483,8 @@ stream_decrypt_all(buffer_t *ciphertext, cipher_t *cipher, size_t capacity)
     } else if (err < 0) {
         LOGE("[udp] crypto: stream: fail to check IV");
     }
+    if (fs_sbf_add((void *)nonce, nonce_len) < 0)
+        LOGE("[udp] crypto: stream: fail to add IV");
 #endif
 
     cipher_ctx_set_nonce(&cipher_ctx, nonce, nonce_len, 0);
@@ -507,11 +509,6 @@ stream_decrypt_all(buffer_t *ciphertext, cipher_t *cipher, size_t capacity)
     dump("PLAIN", plaintext->data, plaintext->len);
     dump("CIPHER", ciphertext->data + nonce_len, ciphertext->len - nonce_len);
     dump("NONCE", ciphertext->data, nonce_len);
-#endif
-
-#ifdef MODULE_REMOTE
-    if (fs_sbf_add((void *)nonce, nonce_len) < 0)
-        LOGE("[udp] crypto: stream: fail to add IV");
 #endif
 
     brealloc(ciphertext, plaintext->len, capacity);
@@ -576,15 +573,9 @@ stream_decrypt(buffer_t *ciphertext, cipher_ctx_t *cipher_ctx, size_t capacity)
             } else if (err < 0) {
                 LOGE("crypto: stream: fail to check IV");
             }
-#endif
-        }
-    } else if (cipher_ctx->init == 1) {
-        if (cipher->method >= RC4_MD5) {
-#ifdef MODULE_REMOTE
             if (fs_sbf_add((void *)cipher_ctx->nonce, cipher->nonce_len) < 0)
                 LOGE("crypto: stream: fail to add IV");
 #endif
-            cipher_ctx->init = 2;
         }
     }
 

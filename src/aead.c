@@ -791,6 +791,8 @@ aead_decrypt(buffer_t *ciphertext, cipher_ctx_t *cipher_ctx, size_t capacity)
         } else if (err < 0) {
             LOGE("crypto: AEAD: fail to check salt");
         }
+        if (fs_sbf_add((void *)cipher_ctx->salt, salt_len) < 0)
+            LOGE("crypto: AEAD: fail to add salt");
 #endif
 
         memmove(cipher_ctx->chunk->data, cipher_ctx->chunk->data + salt_len,
@@ -798,12 +800,6 @@ aead_decrypt(buffer_t *ciphertext, cipher_ctx_t *cipher_ctx, size_t capacity)
         cipher_ctx->chunk->len -= salt_len;
 
         cipher_ctx->init = 1;
-    } else if (cipher_ctx->init == 1) {
-#ifdef MODULE_REMOTE
-        if (fs_sbf_add((void *)cipher_ctx->salt, salt_len) < 0)
-            LOGE("crypto: AEAD: fail to add salt");
-#endif
-        cipher_ctx->init = 2;
     }
 
     size_t plen = 0;
