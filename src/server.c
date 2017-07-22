@@ -1210,7 +1210,7 @@ new_server(int fd, listen_ctx_t *listener)
     crypto->ctx_init(crypto->cipher, server->d_ctx, 0);
 
     int request_timeout = min(MAX_REQUEST_TIMEOUT, listener->timeout)
-                          + rand() % MAX_REQUEST_TIMEOUT;
+                          + randombytes_uniform(MAX_REQUEST_TIMEOUT);
 
     ev_io_init(&server->recv_ctx->io, server_recv_cb, fd, EV_READ);
     ev_io_init(&server->send_ctx->io, server_send_cb, fd, EV_WRITE);
