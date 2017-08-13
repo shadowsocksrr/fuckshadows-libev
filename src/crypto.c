@@ -172,7 +172,7 @@ crypto_init(const char *password, const char *method)
             cipher_t *cipher = stream_init(password, method);
             if (cipher == NULL)
                 return NULL;
-            crypto_t *crypto = (crypto_t *)malloc(sizeof(crypto_t));
+            crypto_t *crypto = (crypto_t *)ss_malloc(sizeof(crypto_t));
             crypto_t tmp     = {
                 .cipher      = cipher,
                 .encrypt_all = &stream_encrypt_all,
