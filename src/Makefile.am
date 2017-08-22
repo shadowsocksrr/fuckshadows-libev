@@ -3,13 +3,13 @@ VERSION_INFO = 2:0:0
 if ENABLE_OPTIMIZATION
 AM_CFLAGS = -O3 -pipe -ffast-math -ftree-vectorize -Wall -Werror -fno-strict-aliasing -std=gnu99 -D_GNU_SOURCE
 else
-AM_CFLAGS = -Os -Wall -Werror -fno-strict-aliasing -std=gnu99 -D_GNU_SOURCE
+AM_CFLAGS = -Os -g -Wall -Werror -fno-strict-aliasing -std=gnu99 -D_GNU_SOURCE
 endif
 
 AM_CFLAGS += $(PTHREAD_CFLAGS)
 if !USE_SYSTEM_SHARED_LIB
 AM_CFLAGS += -I$(top_srcdir)/libev
-AM_CFLAGS += -I$(top_srcdir)/libudns
+AM_CFLAGS += -I$(top_srcdir)/libcares
 AM_CFLAGS += -I$(top_srcdir)/libsodium/src/libsodium/include
 endif
 AM_CFLAGS += -I$(top_srcdir)/libipset/include
@@ -89,15 +89,15 @@ fs_tunnel_LDADD = $(FS_COMMON_LIBS)
 fs_server_LDADD = $(FS_COMMON_LIBS)
 fs_manager_LDADD = $(FS_COMMON_LIBS)
 if USE_SYSTEM_SHARED_LIB
-fs_local_LDADD += -ludns
-fs_tunnel_LDADD += -ludns
-fs_server_LDADD += -ludns
-fs_manager_LDADD += -ludns
+fs_local_LDADD += -lcares
+fs_tunnel_LDADD += -lcares
+fs_server_LDADD += -lcares
+fs_manager_LDADD += -lcares
 else
-fs_local_LDADD += $(top_builddir)/libudns/libudns.la
-fs_tunnel_LDADD += $(top_builddir)/libudns/libudns.la
-fs_server_LDADD += $(top_builddir)/libudns/libudns.la
-fs_manager_LDADD += $(top_builddir)/libudns/libudns.la
+fs_local_LDADD += $(top_builddir)/libcares/libcares.la
+fs_tunnel_LDADD += $(top_builddir)/libcares/libcares.la
+fs_server_LDADD += $(top_builddir)/libcares/libcares.la
+fs_manager_LDADD += $(top_builddir)/libcares/libcares.la
 endif
 
 fs_local_CFLAGS = $(AM_CFLAGS) -DMODULE_LOCAL
@@ -125,8 +125,8 @@ fs_redir_SOURCES = utils.c \
 fs_redir_CFLAGS = $(AM_CFLAGS) -DMODULE_REDIR
 fs_redir_LDADD = $(FS_COMMON_LIBS)
 if USE_SYSTEM_SHARED_LIB
-fs_redir_LDADD += -ludns
+fs_redir_LDADD += -lcares
 else
-fs_redir_LDADD += $(top_builddir)/libudns/libudns.la
+fs_redir_LDADD += $(top_builddir)/libcares/libcares.la
 endif
 endif

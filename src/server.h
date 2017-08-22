@@ -48,6 +48,8 @@ typedef struct server_ctx {
     struct server *server;
 } server_ctx_t;
 
+struct query;
+
 typedef struct server {
     int fd;
     int stage;
@@ -62,7 +64,7 @@ typedef struct server {
     struct listen_ctx *listen_ctx;
     struct remote *remote;
 
-    struct ResolvQuery *query;
+    struct query *query;
 
     struct cork_dllist_item entries;
 } server_t;
