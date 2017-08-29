@@ -197,6 +197,10 @@ resolv_shutdown(struct ev_loop *loop)
 {
     ares_cancel(default_channel);
     ares_destroy(default_channel);
+    if (ev_is_active(&default_timer)) {
+        ev_timer_stop(default_loop, &default_timer);
+        ev_timer_set(&default_timer, 0., 0.);
+    }
     cleanup_resolv_ctxs();
     ares_library_cleanup();
 }
