@@ -102,7 +102,7 @@ static int resolv_mode           = 0;
 
 static void ares_io_handler(struct ev_loop *, struct ev_io *, int);
 static void ares_fd_process_cb(struct ev_loop *, struct ev_timer *, int);
-static void ares_resolv_sock_state_cb(void *, int, int, int);
+static void ares_resolv_sock_state_cb(void *, ares_socket_t, int, int);
 static int ares_resolv_sock_config_cb(ares_socket_t, int, void *);
 static int ares_resolv_sock_cb(ares_socket_t, int, void *);
 
@@ -478,7 +478,7 @@ adjust_fd_process_timer()
  * Handle c-ares events
  */
 static void
-ares_resolv_sock_state_cb(void *data, int s, int read, int write)
+ares_resolv_sock_state_cb(void *data, ares_socket_t s, int read, int write)
 {
     struct resolv_ctx *ctx = NULL;
     find_resolv_ctx(s, &ctx);
