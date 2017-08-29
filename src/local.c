@@ -579,7 +579,7 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
                 if (acl || verbose) {
                     uint16_t p = ntohs(*(uint16_t *)(buf->data + request_len + in_addr_len));
                     ares_inet_ntop(AF_INET, (const void *)(buf->data + request_len),
-                             ip, INET_ADDRSTRLEN);
+                                   ip, INET_ADDRSTRLEN);
                     sprintf(port, "%d", p);
                 }
             } else if (atyp == 3) {
@@ -611,7 +611,7 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
                 if (acl || verbose) {
                     uint16_t p = ntohs(*(uint16_t *)(buf->data + request_len + in6_addr_len));
                     ares_inet_ntop(AF_INET6, (const void *)(buf->data + request_len),
-                             ip, INET6_ADDRSTRLEN);
+                                   ip, INET6_ADDRSTRLEN);
                     sprintf(port, "%d", p);
                 }
             } else {

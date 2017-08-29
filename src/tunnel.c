@@ -483,7 +483,7 @@ remote_send_cb(EV_P_ ev_io *w, int revents)
                 server->abuf = NULL;
             }
             ssize_t s = send(remote->fd, remote->buf->data + remote->buf->idx,
-                         remote->buf->len, 0);
+                             remote->buf->len, 0);
             if (s == -1) {
                 if (errno != EAGAIN && errno != EWOULDBLOCK) {
                     ERROR("send");
@@ -588,7 +588,7 @@ new_server(int fd)
     ev_io_init(&server->send_ctx->io, server_send_cb, fd, EV_WRITE);
 
     ev_timer_init(&server->delayed_connect_watcher,
-            delayed_connect_cb, 0.05, 0);
+                  delayed_connect_cb, 0.05, 0);
 
     return server;
 }
@@ -685,8 +685,8 @@ accept_cb(EV_P_ ev_io *w, int revents)
             ERROR("failed to enable multipath TCP");
         }
     } else if (listener->mptcp == 1) {
-       int i = 0;
-       while((listener->mptcp = mptcp_enabled_values[i]) > 0) {
+        int i = 0;
+        while ((listener->mptcp = mptcp_enabled_values[i]) > 0) {
             int err = setsockopt(remotefd, SOL_TCP, listener->mptcp, &opt, sizeof(opt));
             if (err != -1) {
                 break;

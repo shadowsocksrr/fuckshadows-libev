@@ -652,7 +652,7 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
             if (server->buf->len >= in_addr_len + 3) {
                 addr->sin_addr = *(struct in_addr *)(server->buf->data + offset);
                 ares_inet_ntop(AF_INET, (const void *)(server->buf->data + offset),
-                         host, INET_ADDRSTRLEN);
+                               host, INET_ADDRSTRLEN);
                 offset += in_addr_len;
             } else {
                 report_addr(server->fd, MALFORMED, "invalid length for ipv4 address");
@@ -719,7 +719,7 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
             if (server->buf->len >= in6_addr_len + 3) {
                 addr->sin6_addr = *(struct in6_addr *)(server->buf->data + offset);
                 ares_inet_ntop(AF_INET6, (const void *)(server->buf->data + offset),
-                         host, INET6_ADDRSTRLEN);
+                               host, INET6_ADDRSTRLEN);
                 offset += in6_addr_len;
             } else {
                 LOGE("invalid header with addr type %d", atyp);
@@ -796,9 +796,10 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
 
             server->stage = STAGE_RESOLVE;
             struct resolv_query *q = resolv_start(host, port,
-                   resolv_cb, resolv_free_cb, query);
+                                                  resolv_cb, resolv_free_cb, query);
             if (q == NULL) {
-                if (query != NULL) ss_free(query);
+                if (query != NULL)
+                    ss_free(query);
                 server->query = NULL;
                 close_and_free_server(EV_A_ server);
                 return;
@@ -905,13 +906,14 @@ resolv_free_cb(void *data)
 static void
 resolv_cb(struct sockaddr *addr, void *data)
 {
-    query_t *query       = (query_t *)data;
-    server_t *server     = query->server;
+    query_t *query   = (query_t *)data;
+    server_t *server = query->server;
 
-    if (server == NULL) return;
+    if (server == NULL)
+        return;
 
     struct ev_loop *loop = server->listen_ctx->loop;
-    
+
     if (addr == NULL) {
         LOGE("unable to resolve %s", query->hostname);
         close_and_free_server(EV_A_ server);
@@ -1266,7 +1268,7 @@ close_and_free_server(EV_P_ server_t *server)
     if (server != NULL) {
         if (server->query != NULL) {
             server->query->server = NULL;
-            server->query = NULL;
+            server->query         = NULL;
         }
         ev_io_stop(EV_A_ & server->send_ctx->io);
         ev_io_stop(EV_A_ & server->recv_ctx->io);

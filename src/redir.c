@@ -794,7 +794,7 @@ accept_cb(EV_P_ ev_io *w, int revents)
         }
     } else if (listener->mptcp == 1) {
         int i = 0;
-        while((listener->mptcp = mptcp_enabled_values[i]) > 0) {
+        while ((listener->mptcp = mptcp_enabled_values[i]) > 0) {
             int err = setsockopt(remotefd, SOL_TCP, listener->mptcp, &opt, sizeof(opt));
             if (err != -1) {
                 break;
