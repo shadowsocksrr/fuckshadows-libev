@@ -491,12 +491,16 @@ ares_resolv_sock_state_cb(void *data, ares_socket_t s, int read, int write)
         return;
     }
 
+    /* stop before modifying the watcher */
+    if (ev_is_active(&ctx->io)) {
+        ev_io_stop(default_loop, &ctx->io);
+    }
+
     if (read || write) {
         ev_io_set(&ctx->io, s, (read ? EV_READ : 0) | (write ? EV_WRITE : 0));
         ev_io_start(default_loop, &ctx->io);
     } else {
         // no longer being used
-        ev_io_stop(default_loop, &ctx->io);
         ev_io_set(&ctx->io, ARES_SOCKET_BAD, 0);
         ctx->socket  = ARES_SOCKET_BAD;
         ctx->is_used = 0;
