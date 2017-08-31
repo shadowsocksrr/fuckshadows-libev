@@ -147,7 +147,7 @@ resolv_init(struct ev_loop *loop, char *nameservers, int ipv6first)
 
     if ((status = ares_library_init(ARES_LIB_INIT_ALL)) != ARES_SUCCESS) {
         LOGE("c-ares error: %s", ares_strerror(status));
-        FATAL("failed to initialize c-ares");
+        FATAL("failed to initialize c-ares library");
     }
 
     struct ares_options option;
@@ -163,20 +163,15 @@ resolv_init(struct ev_loop *loop, char *nameservers, int ipv6first)
 
     if (status != ARES_SUCCESS) {
         LOGE("c-ares error: %s", ares_strerror(status));
-        FATAL("failed to initialize c-ares");
+        FATAL("failed to initialize c-ares channel");
     }
 
     if (nameservers != NULL) {
-#if ARES_VERSION_MINOR >= 11
         status = ares_set_servers_ports_csv(default_channel, nameservers);
-#else
-        status = ares_set_servers_csv(default_channel, nameservers);
-#endif
-    }
-
-    if (status != ARES_SUCCESS) {
-        LOGE("c-ares error: %s", ares_strerror(status));
-        FATAL("failed to set nameservers");
+        if (status != ARES_SUCCESS) {
+            LOGE("c-ares error: %s", ares_strerror(status));
+            FATAL("failed to set nameservers");
+        }
     }
 
     ares_set_socket_configure_callback(default_channel,
@@ -210,10 +205,6 @@ resolv_start(const char *hostname, uint16_t port,
              void (*client_cb)(struct sockaddr *, void *),
              void (*free_cb)(void *), void *data)
 {
-    /*
-     * Wrap c-ares's call back in our own
-     */
-
     struct resolv_query *query = ss_malloc(sizeof(struct resolv_query));
 
     if (query == NULL) {
@@ -401,6 +392,7 @@ process_client_callback(struct resolv_query *query)
 
     ss_free(query);
 
+    --current_ctx_num;
     adjust_fd_process_timer();
 }
 
@@ -449,7 +441,8 @@ all_requests_are_null(struct resolv_query *query)
 }
 
 /*
- *  DNS timeout callback
+ * file descriptor processing callback
+ * It will be used to process internal server status
  */
 static void
 ares_fd_process_cb(struct ev_loop *loop, struct ev_timer *w, int revents)
@@ -458,7 +451,7 @@ ares_fd_process_cb(struct ev_loop *loop, struct ev_timer *w, int revents)
 }
 
 /*
- * stop when idle
+ * stop when idle, start when new request arrives
  * should be invoked when new socket being created or one request being finished
  */
 static void
@@ -479,7 +472,7 @@ adjust_fd_process_timer()
 }
 
 /*
- * Handle c-ares events
+ * the lib will notify us fd state changes
  */
 static void
 ares_resolv_sock_state_cb(void *data, ares_socket_t s, int read, int write)
@@ -504,7 +497,6 @@ ares_resolv_sock_state_cb(void *data, ares_socket_t s, int read, int write)
         ev_io_set(&ctx->io, ARES_SOCKET_BAD, 0);
         ctx->socket  = ARES_SOCKET_BAD;
         ctx->is_used = 0;
-        --current_ctx_num;
     }
 }
 
