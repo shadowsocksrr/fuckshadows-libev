@@ -33,6 +33,11 @@
 #include <stdint.h>
 #include <sys/socket.h>
 
+#define RESOLV_MODE_IPV4_ONLY   (0)
+#define RESOLV_MODE_IPV6_ONLY   (1)
+#define RESOLV_MODE_IPV4_FIRST  (2)
+#define RESOLV_MODE_IPV6_FIRST  (3)
+
 struct resolv_query;
 
 int resolv_init(struct ev_loop *, char *, int);

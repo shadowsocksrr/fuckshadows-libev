@@ -56,6 +56,7 @@
 #include "utils.h"
 #include "acl.h"
 #include "server.h"
+#include "resolv.h"
 
 #ifndef EAGAIN
 #define EAGAIN EWOULDBLOCK
@@ -1611,7 +1612,8 @@ main(int argc, char **argv)
     struct ev_loop *loop = EV_DEFAULT;
 
     // setup c-ares
-    resolv_init(loop, nameservers, ipv6first);
+    resolv_init(loop, nameservers,
+                ipv6first ? RESOLV_MODE_IPV6_FIRST : RESOLV_MODE_IPV4_ONLY);
 
     if (nameservers != NULL)
         LOGI("using nameservers: %s", nameservers);

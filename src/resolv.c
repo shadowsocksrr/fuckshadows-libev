@@ -94,11 +94,7 @@ static struct ev_timer default_timer;
 /* the event loop */
 static struct ev_loop *default_loop;
 
-static const int MODE_IPV4_ONLY  = 0;
-static const int MODE_IPV6_ONLY  = 1;
-static const int MODE_IPV4_FIRST = 2;
-static const int MODE_IPV6_FIRST = 3;
-static int resolv_mode           = 0;
+static int resolv_mode = RESOLV_MODE_IPV4_ONLY;
 
 static void ares_io_handler(struct ev_loop *, struct ev_io *, int);
 static void ares_fd_process_cb(struct ev_loop *, struct ev_timer *, int);
@@ -132,15 +128,12 @@ ares_io_handler(EV_P_ ev_io *w, int revents)
 }
 
 int
-resolv_init(struct ev_loop *loop, char *nameservers, int ipv6first)
+resolv_init(struct ev_loop *loop, char *nameservers, int mode)
 {
     int status  = 0;
     int optmask = 0;
 
-    if (ipv6first)
-        resolv_mode = MODE_IPV6_FIRST;
-    else
-        resolv_mode = MODE_IPV4_FIRST;
+    resolv_mode = mode;
 
     default_loop    = loop;
     current_ctx_num = 0;
@@ -222,12 +215,12 @@ resolv_start(const char *hostname, uint16_t port,
     query->free_cb        = free_cb;
 
     /* Submit A and AAAA requests */
-    if (resolv_mode != MODE_IPV6_ONLY) {
+    if (resolv_mode != RESOLV_MODE_IPV6_ONLY) {
         ares_gethostbyname(default_channel, hostname, AF_INET, dns_query_v4_cb, query);
         query->requests[0] = AF_INET;
     }
 
-    if (resolv_mode != MODE_IPV4_ONLY) {
+    if (resolv_mode != RESOLV_MODE_IPV4_ONLY) {
         ares_gethostbyname(default_channel, hostname, AF_INET6, dns_query_v6_cb, query);
         query->requests[1] = AF_INET6;
     }
@@ -370,9 +363,9 @@ process_client_callback(struct resolv_query *query)
 {
     struct sockaddr *best_address = NULL;
 
-    if (resolv_mode == MODE_IPV4_FIRST) {
+    if (resolv_mode == RESOLV_MODE_IPV4_FIRST) {
         best_address = choose_ipv4_first(query);
-    } else if (resolv_mode == MODE_IPV6_FIRST) {
+    } else if (resolv_mode == RESOLV_MODE_IPV6_FIRST) {
         best_address = choose_ipv6_first(query);
     } else {
         best_address = choose_any(query);
