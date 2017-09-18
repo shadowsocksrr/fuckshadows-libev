@@ -661,6 +661,7 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
                 } else if (ret > 0) {
                     sni_detected = 1;
 
+#ifndef ANDROID
                     // Reconstruct address buffer
                     abuf->len               = 0;
                     abuf->data[abuf->len++] = 3;
@@ -670,6 +671,7 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
                     p          = htons(p);
                     memcpy(abuf->data + abuf->len, &p, 2);
                     abuf->len += 2;
+#endif
 
                     if (acl || verbose) {
                         memcpy(host, hostname, ret);
