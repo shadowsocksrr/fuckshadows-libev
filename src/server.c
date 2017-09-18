@@ -107,6 +107,7 @@ static int acl       = 0;
 static int mode      = TCP_ONLY;
 static int ipv6first = 0;
 static int fast_open = 0;
+static int no_delay  = 0;
 
 #ifdef HAVE_SETRLIMIT
 static int nofile = 0;
@@ -1034,12 +1035,12 @@ remote_recv_cb(EV_P_ ev_io *w, int revents)
     }
 
     // Disable TCP_NODELAY after the first response are sent
-    if (!remote->recv_ctx->connected) {
+    if (!remote->recv_ctx->connected && !no_delay) {
         int opt = 0;
         setsockopt(server->fd, SOL_TCP, TCP_NODELAY, &opt, sizeof(opt));
         setsockopt(remote->fd, SOL_TCP, TCP_NODELAY, &opt, sizeof(opt));
-        remote->recv_ctx->connected = 1;
     }
+    remote->recv_ctx->connected = 1;
 }
 
 static void
@@ -1373,6 +1374,7 @@ main(int argc, char **argv)
 
     static struct option long_options[] = {
         { "fast-open",       no_argument,       NULL, GETOPT_VAL_FAST_OPEN       },
+        { "no-delay",        no_argument,       NULL, GETOPT_VAL_NODELAY         },
         { "acl",             required_argument, NULL, GETOPT_VAL_ACL             },
         { "manager-address", required_argument, NULL, GETOPT_VAL_MANAGER_ADDRESS },
         { "mtu",             required_argument, NULL, GETOPT_VAL_MTU             },
@@ -1393,6 +1395,10 @@ main(int argc, char **argv)
         switch (c) {
         case GETOPT_VAL_FAST_OPEN:
             fast_open = 1;
+            break;
+        case GETOPT_VAL_NODELAY:
+            no_delay = 1;
+            LOGI("enable TCP no-delay");
             break;
         case GETOPT_VAL_ACL:
             LOGI("initializing acl...");

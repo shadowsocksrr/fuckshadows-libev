@@ -62,6 +62,7 @@ int send_traffic_stat(uint64_t tx, uint64_t rx);
 enum {
     GETOPT_VAL_HELP = 257,
     GETOPT_VAL_FAST_OPEN,
+    GETOPT_VAL_NODELAY,
     GETOPT_VAL_ACL,
     GETOPT_VAL_MTU,
     GETOPT_VAL_MPTCP,
